@@ -1,0 +1,8 @@
+fastapi
+unicorn
+python-multipart
+opencv-python
+ultralytics
+numpy
+pydantic
+uvicorn
