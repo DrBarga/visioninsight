@@ -121,5 +121,3 @@ Result storage and retrieval
 API authentication & rate limiting
 
 ----------------------------------------------------------------
-
-focus on extensibility and scalability
