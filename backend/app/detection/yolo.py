@@ -4,7 +4,6 @@ import cv2
 
 class YOLODetector:
     def __init__(self):
-        # На первом запуске веса могут скачиваться — это нормально
         self.model = YOLO("yolov8n.pt")
 
     def detect_frame(self, frame):

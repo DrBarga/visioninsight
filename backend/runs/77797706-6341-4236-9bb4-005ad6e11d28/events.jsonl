@@ -1,0 +1,83 @@
+{"frame": 0, "time_sec": 0.0, "events": [{"type": "person_entered", "track_id": 63}, {"type": "person_entered", "track_id": 61}]}
+{"frame": 4, "time_sec": 0.13, "events": [{"type": "person_entered", "track_id": 55}]}
+{"frame": 14, "time_sec": 0.47, "events": [{"type": "person_entered", "track_id": 64}]}
+{"frame": 18, "time_sec": 0.6, "events": [{"type": "person_entered", "track_id": 65}]}
+{"frame": 21, "time_sec": 0.7, "events": [{"type": "person_entered", "track_id": 66}]}
+{"frame": 22, "time_sec": 0.73, "events": [{"type": "person_entered", "track_id": 67}]}
+{"frame": 27, "time_sec": 0.9, "events": [{"type": "person_entered", "track_id": 68}]}
+{"frame": 32, "time_sec": 1.07, "events": [{"type": "person_entered", "track_id": 69}]}
+{"frame": 44, "time_sec": 1.47, "events": [{"type": "person_entered", "track_id": 70}]}
+{"frame": 45, "time_sec": 1.5, "events": [{"type": "person_entered", "track_id": 71}]}
+{"frame": 55, "time_sec": 1.83, "events": [{"type": "person_entered", "track_id": 72}]}
+{"frame": 74, "time_sec": 2.47, "events": [{"type": "person_entered", "track_id": 73}]}
+{"frame": 75, "time_sec": 2.5, "events": [{"type": "person_entered", "track_id": 74}]}
+{"frame": 76, "time_sec": 2.53, "events": [{"type": "person_entered", "track_id": 75}]}
+{"frame": 77, "time_sec": 2.57, "events": [{"type": "person_entered", "track_id": 76}]}
+{"frame": 80, "time_sec": 2.67, "events": [{"type": "person_exited", "track_id": 64}]}
+{"frame": 83, "time_sec": 2.77, "events": [{"type": "person_entered", "track_id": 77}, {"type": "person_entered", "track_id": 78}]}
+{"frame": 85, "time_sec": 2.83, "events": [{"type": "person_exited", "track_id": 65}]}
+{"frame": 90, "time_sec": 3.0, "events": [{"type": "person_entered", "track_id": 79}]}
+{"frame": 93, "time_sec": 3.1, "events": [{"type": "person_exited", "track_id": 61}, {"type": "person_exited", "track_id": 69}]}
+{"frame": 101, "time_sec": 3.37, "events": [{"type": "person_entered", "track_id": 80}]}
+{"frame": 106, "time_sec": 3.53, "events": [{"type": "person_exited", "track_id": 71}]}
+{"frame": 118, "time_sec": 3.93, "events": [{"type": "person_entered", "track_id": 81}, {"type": "person_exited", "track_id": 72}]}
+{"frame": 120, "time_sec": 4.0, "events": [{"type": "person_entered", "track_id": 82}]}
+{"frame": 142, "time_sec": 4.73, "events": [{"type": "person_entered", "track_id": 83}, {"type": "person_exited", "track_id": 68}]}
+{"frame": 144, "time_sec": 4.8, "events": [{"type": "person_exited", "track_id": 78}]}
+{"frame": 163, "time_sec": 5.43, "events": [{"type": "person_exited", "track_id": 70}, {"type": "person_exited", "track_id": 80}]}
+{"frame": 167, "time_sec": 5.57, "events": [{"type": "person_entered", "track_id": 84}]}
+{"frame": 175, "time_sec": 5.83, "events": [{"type": "person_exited", "track_id": 76}]}
+{"frame": 178, "time_sec": 5.93, "events": [{"type": "person_exited", "track_id": 77}]}
+{"frame": 185, "time_sec": 6.17, "events": [{"type": "person_entered", "track_id": 85}]}
+{"frame": 186, "time_sec": 6.2, "events": [{"type": "person_exited", "track_id": 82}]}
+{"frame": 187, "time_sec": 6.23, "events": [{"type": "person_entered", "track_id": 86}]}
+{"frame": 188, "time_sec": 6.27, "events": [{"type": "person_entered", "track_id": 87}]}
+{"frame": 191, "time_sec": 6.37, "events": [{"type": "person_entered", "track_id": 88}, {"type": "person_entered", "track_id": 89}]}
+{"frame": 202, "time_sec": 6.73, "events": [{"type": "person_exited", "track_id": 79}]}
+{"frame": 205, "time_sec": 6.83, "events": [{"type": "person_exited", "track_id": 81}]}
+{"frame": 206, "time_sec": 6.87, "events": [{"type": "person_entered", "track_id": 90}]}
+{"frame": 208, "time_sec": 6.93, "events": [{"type": "person_entered", "track_id": 91}]}
+{"frame": 230, "time_sec": 7.67, "events": [{"type": "person_exited", "track_id": 55}]}
+{"frame": 233, "time_sec": 7.77, "events": [{"type": "person_entered", "track_id": 92}, {"type": "person_entered", "track_id": 93}]}
+{"frame": 235, "time_sec": 7.83, "events": [{"type": "person_entered", "track_id": 94}]}
+{"frame": 237, "time_sec": 7.9, "events": [{"type": "person_entered", "track_id": 95}]}
+{"frame": 248, "time_sec": 8.27, "events": [{"type": "person_exited", "track_id": 73}]}
+{"frame": 249, "time_sec": 8.3, "events": [{"type": "person_exited", "track_id": 84}, {"type": "person_exited", "track_id": 87}]}
+{"frame": 252, "time_sec": 8.4, "events": [{"type": "person_exited", "track_id": 88}]}
+{"frame": 256, "time_sec": 8.53, "events": [{"type": "person_exited", "track_id": 63}]}
+{"frame": 260, "time_sec": 8.67, "events": [{"type": "person_exited", "track_id": 86}]}
+{"frame": 262, "time_sec": 8.73, "events": [{"type": "person_exited", "track_id": 89}]}
+{"frame": 268, "time_sec": 8.93, "events": [{"type": "person_exited", "track_id": 85}]}
+{"frame": 270, "time_sec": 9.0, "events": [{"type": "person_exited", "track_id": 91}]}
+{"frame": 278, "time_sec": 9.27, "events": [{"type": "person_entered", "track_id": 96}, {"type": "person_entered", "track_id": 97}, {"type": "person_exited", "track_id": 67}]}
+{"frame": 287, "time_sec": 9.57, "events": [{"type": "person_entered", "track_id": 98}]}
+{"frame": 288, "time_sec": 9.6, "events": [{"type": "person_entered", "track_id": 99}, {"type": "person_entered", "track_id": 100}]}
+{"frame": 292, "time_sec": 9.73, "events": [{"type": "person_exited", "track_id": 74}]}
+{"frame": 294, "time_sec": 9.8, "events": [{"type": "person_entered", "track_id": 101}]}
+{"frame": 295, "time_sec": 9.83, "events": [{"type": "person_entered", "track_id": 102}]}
+{"frame": 297, "time_sec": 9.9, "events": [{"type": "person_exited", "track_id": 75}]}
+{"frame": 298, "time_sec": 9.93, "events": [{"type": "person_exited", "track_id": 92}, {"type": "person_exited", "track_id": 93}]}
+{"frame": 300, "time_sec": 10.0, "events": [{"type": "person_entered", "track_id": 103}]}
+{"frame": 304, "time_sec": 10.13, "events": [{"type": "person_exited", "track_id": 95}]}
+{"frame": 307, "time_sec": 10.23, "events": [{"type": "person_entered", "track_id": 104}]}
+{"frame": 309, "time_sec": 10.3, "events": [{"type": "person_entered", "track_id": 105}, {"type": "person_entered", "track_id": 106}]}
+{"frame": 311, "time_sec": 10.37, "events": [{"type": "person_entered", "track_id": 107}]}
+{"frame": 312, "time_sec": 10.4, "events": [{"type": "person_exited", "track_id": 94}]}
+{"frame": 314, "time_sec": 10.47, "events": [{"type": "person_entered", "track_id": 108}]}
+{"frame": 318, "time_sec": 10.6, "events": [{"type": "person_entered", "track_id": 109}]}
+{"frame": 319, "time_sec": 10.63, "events": [{"type": "person_entered", "track_id": 110}]}
+{"frame": 320, "time_sec": 10.67, "events": [{"type": "person_entered", "track_id": 111}]}
+{"frame": 324, "time_sec": 10.8, "events": [{"type": "person_entered", "track_id": 112}, {"type": "person_entered", "track_id": 113}]}
+{"frame": 333, "time_sec": 11.1, "events": [{"type": "person_entered", "track_id": 114}]}
+{"frame": 335, "time_sec": 11.17, "events": [{"type": "person_entered", "track_id": 115}]}
+{"frame": 339, "time_sec": 11.3, "events": [{"type": "person_entered", "track_id": 116}, {"type": "person_exited", "track_id": 97}]}
+{"frame": 341, "time_sec": 11.37, "events": [{"type": "person_exited", "track_id": 90}]}
+{"frame": 344, "time_sec": 11.47, "events": [{"type": "person_entered", "track_id": 117}]}
+{"frame": 345, "time_sec": 11.5, "events": [{"type": "person_entered", "track_id": 118}]}
+{"frame": 349, "time_sec": 11.63, "events": [{"type": "person_exited", "track_id": 98}, {"type": "person_exited", "track_id": 100}]}
+{"frame": 353, "time_sec": 11.77, "events": [{"type": "person_exited", "track_id": 96}]}
+{"frame": 354, "time_sec": 11.8, "events": [{"type": "person_entered", "track_id": 119}]}
+{"frame": 356, "time_sec": 11.87, "events": [{"type": "person_exited", "track_id": 66}]}
+{"frame": 358, "time_sec": 11.93, "events": [{"type": "person_entered", "track_id": 120}]}
+{"frame": 360, "time_sec": 12.0, "events": [{"type": "person_entered", "track_id": 121}]}
+{"frame": 362, "time_sec": 12.07, "events": [{"type": "person_entered", "track_id": 122}]}
