@@ -9,7 +9,7 @@ from app.video.processor import VideoProcessor
 from app.query.schemas import AskRequest, AskResponse
 from app.query.engine import answer_question
 
-app = FastAPI(title="VisionInsight API", version="0.3")
+app = FastAPI(title="VisionInsight API", version="0.3.1")
 
 RUNS_DIR = Path("runs")
 processor = VideoProcessor(runs_dir=str(RUNS_DIR))
@@ -17,7 +17,7 @@ processor = VideoProcessor(runs_dir=str(RUNS_DIR))
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.3"}
+    return {"status": "ok", "version": "0.3.1"}
 
 
 @app.get("/")
@@ -61,6 +61,15 @@ def get_timeline(analysis_id: str):
         media_type="application/x-ndjson",
         filename="timeline.jsonl"
     )
+
+
+@app.get("/analysis/{analysis_id}/stats")
+def get_stats(analysis_id: str):
+    stats_path = RUNS_DIR / analysis_id / "stats.json"
+    if not stats_path.exists():
+        raise HTTPException(status_code=404, detail="stats not found")
+
+    return FileResponse(str(stats_path), media_type="application/json", filename="stats.json")
 
 
 @app.post("/analysis/{analysis_id}/ask", response_model=AskResponse)

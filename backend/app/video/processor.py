@@ -1,12 +1,13 @@
-import os
 import json
 import uuid
 import shutil
 from pathlib import Path
+
 import cv2
 
 from app.detection.yolo import YOLODetector
 from app.tracking.iou_tracker import IOUTracker
+from app.analytics.stats_builder import StatsBuilder
 
 
 class VideoProcessor:
@@ -30,14 +31,12 @@ class VideoProcessor:
         input_src = Path(input_path)
         input_dst = run_dir / "input.mp4"
         if input_src.resolve() != input_dst.resolve():
-            shutil.copyfile(input_path, str(input_dst))
+            shutil.copyfile(str(input_src), str(input_dst))
 
-        # Output path inside run dir by default
+        # Output video path inside run dir
         output_dst = run_dir / "output.mp4"
-        if output_path:
-            # If caller provided output_path, we still write to run_dir/output.mp4
-            # and caller can use artifacts path from response.
-            pass
+        # output_path сейчас не используем (оставляем на будущее), но параметр не ломаем
+        _ = output_path
 
         cap = cv2.VideoCapture(str(input_dst))
         if not cap.isOpened():
@@ -45,7 +44,11 @@ class VideoProcessor:
 
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)) or 0
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 0
-        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+        fps = float(cap.get(cv2.CAP_PROP_FPS) or 25.0)
+
+        if width <= 0 or height <= 0:
+            cap.release()
+            raise RuntimeError(f"Invalid video dimensions: {width}x{height}")
 
         out = cv2.VideoWriter(
             str(output_dst),
@@ -60,6 +63,7 @@ class VideoProcessor:
         people_path = run_dir / "people.jsonl"
         meta_path = run_dir / "meta.json"
         summary_path = run_dir / "summary.json"
+        stats_path = run_dir / "stats.json"
 
         # Tracking bookkeeping
         frame_id = 0
@@ -78,7 +82,7 @@ class VideoProcessor:
             "fps": fps,
             "tracker": {"type": "IOUTracker", "iou_threshold": 0.3, "max_missed": 30},
             "detector": {"type": "YOLOv8", "model": "yolov8n.pt"},
-            "version": "0.2"
+            "version": "0.3.1"
         }
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -120,7 +124,6 @@ class VideoProcessor:
                     time_sec = round(frame_id / fps, 2)
 
                     if people:
-                        # store people frame line
                         f_people.write(json.dumps({
                             "frame": frame_id,
                             "time_sec": time_sec,
@@ -128,14 +131,12 @@ class VideoProcessor:
                         }, ensure_ascii=False) + "\n")
 
                     if events:
-                        # store events frame line
                         f_ev.write(json.dumps({
                             "frame": frame_id,
                             "time_sec": time_sec,
                             "events": events
                         }, ensure_ascii=False) + "\n")
 
-                    # timeline line (combined)
                     f_tl.write(json.dumps({
                         "frame": frame_id,
                         "time_sec": time_sec,
@@ -151,6 +152,15 @@ class VideoProcessor:
         cap.release()
         out.release()
 
+        # --- v0.3.1: build stats.json (ВАЖНО: после записи timeline.jsonl) ---
+        stats_builder = StatsBuilder(high_density_threshold=10, min_window_sec=0.7)
+        stats = stats_builder.build_from_timeline_jsonl(
+            analysis_id=analysis_id,
+            timeline_path=timeline_path,
+            fps=fps
+        )
+        stats_path.write_text(json.dumps(stats.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+
         summary = {
             "analysis_id": analysis_id,
             "tracks_summary": {
@@ -162,6 +172,7 @@ class VideoProcessor:
                 "run_dir": str(run_dir),
                 "meta": str(meta_path),
                 "summary": str(summary_path),
+                "stats": str(stats_path),
                 "timeline_jsonl": str(timeline_path),
                 "events_jsonl": str(events_path),
                 "people_jsonl": str(people_path),
