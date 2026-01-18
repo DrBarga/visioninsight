@@ -12,6 +12,8 @@ class StatsResult:
     timeline_frames: int
     people_count: Dict[str, Any]
     crowd_windows: List[Dict[str, Any]]
+    crowd_threshold: int
+    crowd_smoothing_sec: float
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -21,19 +23,15 @@ class StatsResult:
             "timeline_frames": self.timeline_frames,
             "people_count": self.people_count,
             "crowd_windows": self.crowd_windows,
+            "crowd_threshold": self.crowd_threshold,
+            "crowd_smoothing_sec": self.crowd_smoothing_sec,
         }
 
 
 class StatsBuilder:
-    """
-    Builds high-level statistics from timeline.jsonl.
-    timeline.jsonl: one JSON object per line:
-      { "frame": ..., "time_sec": ..., "people": [...], "events": [...] }
-    """
-
-    def __init__(self, high_density_threshold: int = 10, min_window_sec: float = 0.7):
-        self.high_density_threshold = high_density_threshold
+    def __init__(self, min_window_sec: float = 0.7, smoothing_sec: float = 0.5):
         self.min_window_sec = min_window_sec
+        self.smoothing_sec = smoothing_sec
 
     def build_from_timeline_jsonl(
         self,
@@ -41,114 +39,111 @@ class StatsBuilder:
         timeline_path: Path,
         fps: float,
     ) -> StatsResult:
-        if not timeline_path.exists():
-            raise FileNotFoundError(f"timeline not found: {timeline_path}")
 
         counts: List[int] = []
-        time_points: List[float] = []
-        frame_points: List[int] = []
+        times: List[float] = []
 
         with timeline_path.open("r", encoding="utf-8") as f:
             for line in f:
-                line = line.strip()
-                if not line:
+                if not line.strip():
                     continue
                 obj = json.loads(line)
-                people = obj.get("people") or []
-                frame = int(obj.get("frame", 0))
-                time_sec = float(obj.get("time_sec", frame / (fps or 25.0)))
-
-                counts.append(len(people))
-                time_points.append(time_sec)
-                frame_points.append(frame)
+                counts.append(len(obj.get("people", [])))
+                times.append(float(obj.get("time_sec", 0)))
 
         if not counts:
-            # timeline empty => stats empty
             return StatsResult(
-                analysis_id=analysis_id,
-                fps=float(fps),
-                duration_sec_est=0.0,
-                timeline_frames=0,
-                people_count={
-                    "max": 0,
-                    "avg": 0.0,
-                    "p95": 0,
-                    "max_at": {"time_sec": 0.0, "frame": 0},
-                },
-                crowd_windows=[],
+                analysis_id,
+                fps,
+                0.0,
+                0,
+                {},
+                [],
+                3,
+                self.smoothing_sec,
             )
 
+        duration = max(times)
         max_count = max(counts)
-        max_idx = counts.index(max_count)
         avg_count = sum(counts) / len(counts)
-
         p95 = self._percentile(counts, 95)
 
-        duration_est = max(time_points) if time_points else 0.0
+        threshold = max(3, min(int(p95), int(max_count) - 1))
 
-        people_count = {
-            "max": int(max_count),
-            "avg": round(float(avg_count), 2),
-            "p95": int(p95),
-            "max_at": {
-                "time_sec": round(float(time_points[max_idx]), 2),
-                "frame": int(frame_points[max_idx]),
-            },
-        }
+        smoothed = self._moving_average(counts, int(self.smoothing_sec * fps))
 
-        windows = self._build_crowd_windows(time_points, counts)
+        windows = self._stable_windows(times, smoothed, threshold)
+        if not windows:
+            windows = self._top_percentile_windows(times, smoothed, percentile=90)
 
         return StatsResult(
             analysis_id=analysis_id,
-            fps=float(fps),
-            duration_sec_est=float(duration_est),
+            fps=fps,
+            duration_sec_est=duration,
             timeline_frames=len(counts),
-            people_count=people_count,
+            people_count={
+                "max": max_count,
+                "avg": round(avg_count, 2),
+                "p95": p95,
+            },
             crowd_windows=windows,
+            crowd_threshold=threshold,
+            crowd_smoothing_sec=self.smoothing_sec,
         )
 
-    def _build_crowd_windows(self, times: List[float], counts: List[int]) -> List[Dict[str, Any]]:
-        """
-        Finds contiguous windows where people_count >= high_density_threshold.
-        """
-        windows: List[Dict[str, Any]] = []
-        in_window = False
-        start_sec: Optional[float] = None
+    # -------- helpers --------
+
+    def _stable_windows(self, times, counts, threshold):
+        windows = []
+        start = None
 
         for t, c in zip(times, counts):
-            if c >= self.high_density_threshold and not in_window:
-                in_window = True
-                start_sec = t
-            elif c < self.high_density_threshold and in_window:
-                # close window
-                end_sec = t
-                if start_sec is not None and (end_sec - start_sec) >= self.min_window_sec:
+            if c >= threshold and start is None:
+                start = t
+            elif c < threshold and start is not None:
+                if t - start >= self.min_window_sec:
                     windows.append({
-                        "start_sec": round(start_sec, 2),
-                        "end_sec": round(end_sec, 2),
-                        "reason": "high_density"
+                        "start_sec": round(start, 2),
+                        "end_sec": round(t, 2),
+                        "type": "stable_crowd"
                     })
-                in_window = False
-                start_sec = None
-
-        # if ended inside window
-        if in_window and start_sec is not None:
-            end_sec = times[-1]
-            if (end_sec - start_sec) >= self.min_window_sec:
-                windows.append({
-                    "start_sec": round(start_sec, 2),
-                    "end_sec": round(end_sec, 2),
-                    "reason": "high_density"
-                })
+                start = None
 
         return windows
 
-    @staticmethod
-    def _percentile(values: List[int], p: int) -> int:
-        if not values:
-            return 0
+    def _top_percentile_windows(self, times, counts, percentile=90):
+        cutoff = self._percentile(counts, percentile)
+        windows = []
+        start = None
+
+        for t, c in zip(times, counts):
+            if c >= cutoff and start is None:
+                start = t
+            elif c < cutoff and start is not None:
+                windows.append({
+                    "start_sec": round(start, 2),
+                    "end_sec": round(t, 2),
+                    "type": "top_percentile_crowd"
+                })
+                start = None
+
+        return windows
+
+    def _moving_average(self, values, window):
+        if window <= 1:
+            return values
+        out = []
+        buf = []
+        s = 0.0
+        for v in values:
+            buf.append(v)
+            s += v
+            if len(buf) > window:
+                s -= buf.pop(0)
+            out.append(s / len(buf))
+        return out
+
+    def _percentile(self, values, p):
         v = sorted(values)
-        # nearest-rank method
-        k = int(round((p / 100.0) * (len(v) - 1)))
-        k = max(0, min(k, len(v) - 1))
+        k = int((p / 100) * (len(v) - 1))
         return v[k]

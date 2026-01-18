@@ -1,0 +1,18 @@
+{
+  "analysis_id": "5ec45234-0318-4438-b8a0-70b301665199",
+  "fps": 30.0,
+  "duration_sec_est": 12.13,
+  "timeline_frames": 352,
+  "people_count": {
+    "max": 9,
+    "avg": 3.59,
+    "p95": 7,
+    "max_at": {
+      "time_sec": 4.1,
+      "frame": 123
+    }
+  },
+  "crowd_windows": [],
+  "crowd_threshold": 7,
+  "crowd_smoothing_sec": 0.5
+}

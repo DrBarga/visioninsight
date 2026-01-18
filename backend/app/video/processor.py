@@ -35,8 +35,7 @@ class VideoProcessor:
 
         # Output video path inside run dir
         output_dst = run_dir / "output.mp4"
-        # output_path сейчас не используем (оставляем на будущее), но параметр не ломаем
-        _ = output_path
+        _ = output_path  # reserved for future use
 
         cap = cv2.VideoCapture(str(input_dst))
         if not cap.isOpened():
@@ -82,7 +81,7 @@ class VideoProcessor:
             "fps": fps,
             "tracker": {"type": "IOUTracker", "iou_threshold": 0.3, "max_missed": 30},
             "detector": {"type": "YOLOv8", "model": "yolov8n.pt"},
-            "version": "0.3.1"
+            "version": "0.3.4"
         }
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -152,8 +151,8 @@ class VideoProcessor:
         cap.release()
         out.release()
 
-        # --- v0.3.1: build stats.json (ВАЖНО: после записи timeline.jsonl) ---
-        stats_builder = StatsBuilder(high_density_threshold=6, min_window_sec=0.7)
+        # --- v0.3.4: build stats.json AFTER timeline.jsonl is written ---
+        stats_builder = StatsBuilder(min_window_sec=0.7, smoothing_sec=0.5)
         stats = stats_builder.build_from_timeline_jsonl(
             analysis_id=analysis_id,
             timeline_path=timeline_path,
