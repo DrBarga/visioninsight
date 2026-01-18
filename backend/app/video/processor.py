@@ -153,7 +153,7 @@ class VideoProcessor:
         out.release()
 
         # --- v0.3.1: build stats.json (ВАЖНО: после записи timeline.jsonl) ---
-        stats_builder = StatsBuilder(high_density_threshold=10, min_window_sec=0.7)
+        stats_builder = StatsBuilder(high_density_threshold=6, min_window_sec=0.7)
         stats = stats_builder.build_from_timeline_jsonl(
             analysis_id=analysis_id,
             timeline_path=timeline_path,

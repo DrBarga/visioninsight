@@ -137,6 +137,34 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
 
         return (intent, "Events file not found for this analysis.", {}, 0.4)
 
+    # 5) v0.3.3 Crowd windows: use stats.json
+    if intent == "crowd_windows":
+        if not stats:
+            return (
+                intent,
+                "Stats not found for this analysis. Run analysis again to generate stats.json.",
+                {},
+                0.4
+            )
+
+        windows = stats.get("crowd_windows") or []
+        if not windows:
+            # fallback: suggest threshold adjustment if needed
+            pc = stats.get("people_count", {}) or {}
+            peak = pc.get("max", 0)
+            answer = (
+                "No high-density windows detected with the current threshold. "
+                f"Peak on-screen crowd was {peak}."
+            )
+            return (intent, answer, {"crowd_windows": [], "peak_on_screen": peak}, 0.8)
+
+        # Create a user-friendly summary
+        top = windows[:10]
+        intervals = [f"{w['start_sec']}s–{w['end_sec']}s" for w in top]
+        answer = "Most crowded moments (high-density windows): " + ", ".join(intervals) + "."
+        evidence = {"crowd_windows": top, "count": len(windows)}
+        return (intent, answer, evidence, 0.9)
+
     # 5) Summary: use stats for richer overview
     if intent == "summary":
         unique_people = summary.get("tracks_summary", {}).get("unique_people", 0)
