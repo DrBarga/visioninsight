@@ -1,0 +1,22 @@
+{
+  "analysis_id": "919a2124-9f0b-441f-ae2d-efe7bd95a7ff",
+  "input_file": "input.mp4",
+  "output_file": "output.mp4",
+  "width": 720,
+  "height": 1280,
+  "fps": 30.0,
+  "tracker": {
+    "type": "IOUTracker",
+    "iou_threshold": 0.3,
+    "max_missed": 30
+  },
+  "detector": {
+    "type": "YOLOv8",
+    "model": "yolov8n.pt"
+  },
+  "version": "0.3.7",
+  "events_logic": {
+    "min_presence_sec": 0.3,
+    "min_absence_sec": 0.7
+  }
+}

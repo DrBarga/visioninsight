@@ -1,7 +1,8 @@
 import json
-import uuid
 import shutil
+import uuid
 from pathlib import Path
+from typing import Optional
 
 import cv2
 
@@ -19,23 +20,22 @@ class VideoProcessor:
     def _ensure_dir(self, p: Path) -> None:
         p.mkdir(parents=True, exist_ok=True)
 
-    def process(self, input_path: str, output_path: str | None = None, analysis_id: str | None = None):
+    def process(self, input_path: str, output_path: Optional[str] = None, analysis_id: Optional[str] = None):
         """
-        Process video, write artifacts to runs/<analysis_id>/ and return compact response.
+        Process video, write artifacts to runs/<analysis_id>/ and return compact summary.
         """
         analysis_id = analysis_id or str(uuid.uuid4())
         run_dir = self.runs_dir / analysis_id
         self._ensure_dir(run_dir)
 
-        # Copy input into run dir for reproducibility
+        # Copy input into run dir
         input_src = Path(input_path)
         input_dst = run_dir / "input.mp4"
         if input_src.resolve() != input_dst.resolve():
             shutil.copyfile(str(input_src), str(input_dst))
 
-        # Output video path inside run dir
+        # Output in run dir
         output_dst = run_dir / "output.mp4"
-        _ = output_path  # reserved for future use
 
         cap = cv2.VideoCapture(str(input_dst))
         if not cap.isOpened():
@@ -45,15 +45,11 @@ class VideoProcessor:
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) or 0
         fps = float(cap.get(cv2.CAP_PROP_FPS) or 25.0)
 
-        if width <= 0 or height <= 0:
-            cap.release()
-            raise RuntimeError(f"Invalid video dimensions: {width}x{height}")
-
         out = cv2.VideoWriter(
             str(output_dst),
             cv2.VideoWriter_fourcc(*"mp4v"),
             fps,
-            (width, height)
+            (width, height),
         )
 
         # Artifact files
@@ -64,12 +60,19 @@ class VideoProcessor:
         summary_path = run_dir / "summary.json"
         stats_path = run_dir / "stats.json"
 
-        # Tracking bookkeeping
+        # --- Tracking & event intelligence (anti-flicker) ---
+        min_presence_sec = 0.3   # must be present for >=0.3s to count as entered
+        min_absence_sec = 0.7    # must be absent for >=0.7s to count as exited
+        min_presence_frames = max(1, int(fps * min_presence_sec))
+        min_absence_frames = max(1, int(fps * min_absence_sec))
+
+        # track_state[tid] = {"first_seen": int, "last_seen": int, "confirmed": bool}
+        track_state = {}
+
+        # Bookkeeping
         frame_id = 0
         timeline_count = 0
         seen_tracks = set()
-        last_seen = {}  # track_id -> last frame index
-        exit_threshold = int(fps * 2)  # exit after 2 seconds not seen
 
         # Write meta upfront
         meta = {
@@ -81,7 +84,11 @@ class VideoProcessor:
             "fps": fps,
             "tracker": {"type": "IOUTracker", "iou_threshold": 0.3, "max_missed": 30},
             "detector": {"type": "YOLOv8", "model": "yolov8n.pt"},
-            "version": "0.3.4"
+            "version": "0.3.7",
+            "events_logic": {
+                "min_presence_sec": min_presence_sec,
+                "min_absence_sec": min_absence_sec
+            }
         }
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -96,53 +103,65 @@ class VideoProcessor:
 
                 processed_frame, detections = self.detector.detect_frame(frame)
 
-                # Only persons (COCO: person=0)
+                # Keep only persons (COCO: person=0)
                 people = [d for d in detections if d.get("class_id") == 0]
 
-                # Tracking
+                # Tracking (adds track_id)
                 people = self.tracker.update(frame_id, people)
 
-                # Events for this frame
+                time_sec = round(frame_id / fps, 2)
+
+                # --- Smarter enter/exit events ---
                 events = []
+                current_ids = set()
+
                 for d in people:
                     tid = d["track_id"]
-                    last_seen[tid] = frame_id
+                    current_ids.add(tid)
 
-                    if tid not in seen_tracks:
+                    st = track_state.get(tid)
+                    if st is None:
+                        track_state[tid] = {"first_seen": frame_id, "last_seen": frame_id, "confirmed": False}
+                        st = track_state[tid]
+                    else:
+                        st["last_seen"] = frame_id
+
+                    # confirm enter only after stable presence
+                    if not st["confirmed"] and (frame_id - st["first_seen"]) >= min_presence_frames:
+                        st["confirmed"] = True
                         seen_tracks.add(tid)
                         events.append({"type": "person_entered", "track_id": tid})
 
-                # Exit events
-                for tid, last_fr in list(last_seen.items()):
-                    if frame_id - last_fr > exit_threshold:
-                        events.append({"type": "person_exited", "track_id": tid})
-                        del last_seen[tid]
+                # confirm exits only after stable absence (for confirmed tracks)
+                for tid, st in list(track_state.items()):
+                    if st["confirmed"]:
+                        if tid not in current_ids and (frame_id - st["last_seen"]) >= min_absence_frames:
+                            events.append({"type": "person_exited", "track_id": tid})
+                            del track_state[tid]
 
-                # Write artifacts (only if there is data)
+                # Write people/events/timeline JSONL
+                if people:
+                    f_people.write(json.dumps({
+                        "frame": frame_id,
+                        "time_sec": time_sec,
+                        "people": people
+                    }, ensure_ascii=False) + "\n")
+
+                if events:
+                    f_ev.write(json.dumps({
+                        "frame": frame_id,
+                        "time_sec": time_sec,
+                        "events": events
+                    }, ensure_ascii=False) + "\n")
+
+                # Timeline stores both
                 if people or events:
-                    time_sec = round(frame_id / fps, 2)
-
-                    if people:
-                        f_people.write(json.dumps({
-                            "frame": frame_id,
-                            "time_sec": time_sec,
-                            "people": people
-                        }, ensure_ascii=False) + "\n")
-
-                    if events:
-                        f_ev.write(json.dumps({
-                            "frame": frame_id,
-                            "time_sec": time_sec,
-                            "events": events
-                        }, ensure_ascii=False) + "\n")
-
                     f_tl.write(json.dumps({
                         "frame": frame_id,
                         "time_sec": time_sec,
                         "people": people,
                         "events": events
                     }, ensure_ascii=False) + "\n")
-
                     timeline_count += 1
 
                 out.write(processed_frame)
@@ -151,20 +170,29 @@ class VideoProcessor:
         cap.release()
         out.release()
 
-        # --- v0.3.4: build stats.json AFTER timeline.jsonl is written ---
-        stats_builder = StatsBuilder(min_window_sec=0.7, smoothing_sec=0.5)
-        stats = stats_builder.build_from_timeline_jsonl(
+        # --- Build stats.json (v0.3.5) ---
+        stats_builder = StatsBuilder(
+            min_window_sec=0.7,
+            smoothing_sec=0.5,
+            dynamics_window_sec=1.0,
+            top_percentile=90
+        )
+
+        stats = stats_builder.build(
             analysis_id=analysis_id,
             timeline_path=timeline_path,
-            fps=fps
+            fps=fps,
+            events_path=events_path
         )
+
         stats_path.write_text(json.dumps(stats.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
+        # Summary
         summary = {
             "analysis_id": analysis_id,
             "tracks_summary": {
                 "unique_people": len(seen_tracks),
-                "track_ids": sorted(list(seen_tracks))
+                "track_ids": sorted(list(seen_tracks)),
             },
             "timeline_count": timeline_count,
             "artifacts": {
@@ -175,8 +203,8 @@ class VideoProcessor:
                 "timeline_jsonl": str(timeline_path),
                 "events_jsonl": str(events_path),
                 "people_jsonl": str(people_path),
-                "output_video": str(output_dst)
-            }
+                "output_video": str(output_dst),
+            },
         }
         summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
         return summary

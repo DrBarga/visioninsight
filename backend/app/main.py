@@ -9,7 +9,7 @@ from app.video.processor import VideoProcessor
 from app.query.schemas import AskRequest, AskResponse
 from app.query.engine import answer_question
 
-app = FastAPI(title="VisionInsight API", version="0.3.1")
+app = FastAPI(title="VisionInsight API", version="0.3.5")
 
 RUNS_DIR = Path("runs")
 processor = VideoProcessor(runs_dir=str(RUNS_DIR))
@@ -17,7 +17,7 @@ processor = VideoProcessor(runs_dir=str(RUNS_DIR))
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "0.3.1"}
+    return {"status": "ok", "version": "0.3.5"}
 
 
 @app.get("/")

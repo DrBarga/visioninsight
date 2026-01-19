@@ -22,7 +22,6 @@ class YOLODetector:
                     "bbox": [x1, y1, x2, y2]
                 })
 
-                # Важно: rectangle, а не rectange
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 
         return frame, detections
