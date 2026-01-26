@@ -1,123 +1,117 @@
-VisionInsight — Video Analytics Platform (v0.1)
+# VisionInsight
 
-VisionInsight is an end-to-end AI-powered video analytics backend that performs object detection on uploaded videos and returns structured detection data along with an annotated output video.
-This project is designed as a production-oriented MVP, demonstrating how to build a complete Computer Vision pipeline using modern ML tooling and a REST API.
+VisionInsight is a computer vision system for **crowd and event video analytics**.  
+It transforms raw videos into structured data, analytics, highlights, and natural-language answers.
 
-----------------------------------------------------------------
+The system is designed for videos with many people (festivals, public events, concerts, streets) and focuses on **explainable intelligence**, not black-box predictions.
 
-1) Features (v0.1)
+---
 
-FastAPI-based backend with automatic API documentation
-Video upload and processing via REST API
-Frame-by-frame object detection using YOLOv8 (CPU)
-Bounding box visualization on output video
-Structured JSON output with detection metadata
-Health-check endpoint for service monitoring
+## Core Capabilities
 
-2) Tech Stack
+- Person detection (YOLOv8)
+- Multi-object tracking (IOU-based)
+- Crowd statistics and dynamics
+- High-density crowd window detection
+- Automatic video highlights extraction
+- Natural-language Q&A over video analytics (no LLMs yet)
+- Fully traceable results (JSON / JSONL artifacts)
 
-Backend: FastAPI, Uvicorn
-Computer Vision: OpenCV
-Object Detection: Ultralytics YOLOv8 (yolov8n, CPU-friendly)
-Language: Python 3.10+
-Deployment (local): Uvicorn ASGI server
+---
 
-3)Project Structure
+## Project Structure
 
-visioninsight/
-  backend/
-     app/
-       main.py              # FastAPI entry point
-        detection/
-          yolo.py           # YOLOv8 detector
-        video/
-          processor.py      # Video processing pipeline
-        tracking/             # (reserved for v0.2)
-        requirements.txt
+backend/
+├── app/
+│ ├── video/ # video processing & tracking
+│ ├── analytics/ # stats, highlights, crowd dynamics
+│ ├── query/ # intents, Q&A engine
+│ ├── detection/ # YOLO detector
+│ └── tracking/ # IOU tracker
+├── runs/ # analysis outputs (auto-generated)
+└── main.py # FastAPI entry point
 
-4) API Endpoints
+---
 
-1.Health Check
-GET /health
+## Each video analysis creates a folder:
 
-2.Response:
-{
-  "status": "ok"
-}
+runs/<analysis_id>/
+├── input.mp4
+├── output.mp4
+├── summary.json
+├── stats.json
+├── highlights.json
+├── timeline.jsonl
+├── events.jsonl
+└── people.jsonl
 
-3.Analyze Video
-POST /analyze-video/
+---
 
-4.Request
-Content-Type: multipart/form-data
-Field: file (MP4 video)
+## Requirements
 
-5. Response (200 OK)
-{
-  "video_id": "uuid",
-  "events_count": 128,
-  "events": [
-    {
-      "frame": 12,
-      "objects": [
-        {
-          "class_id": 0,
-          "confidence": 0.84,
-          "bbox": [119, 360, 714, 1280]
-        }
-      ]
-    }
-  ],
-  "output_video": "output_<uuid>.mp4"
-}
+- Python 3.10+
+- CPU is sufficient (GPU optional)
+- OS: Windows / Linux / macOS
 
-5) How to Run Locally
-
-1. Create virtual environment
-
-python -m venv .venv
-source .venv/bin/activate   # Linux / macOS
-.venv\Scripts\activate      # Windows
-
-2. Install dependencies
-
+Install dependencies:
+```bash```
 pip install -r requirements.txt
 
-3. Start server
+---
 
-cd backend
+How to Run
+From the backend directory:
 python -m uvicorn app.main:app
 
-Server will be available at:
+Server will start at:
 http://127.0.0.1:8000
 
-Swagger UI:
+Interactive API documentation:
 http://127.0.0.1:8000/docs
 
-----------------------------------------------------------------
+---
 
-Notes & Limitations (v0.1)
+## API Usage
 
-Detection is performed per frame (no object tracking yet)
-Output JSON may be large for long videos
-Results are stored locally (no database in v0.1)
-Optimized for CPU inference, not GPU
+1. Analyze a Video
 
-----------------------------------------------------------------
+POST /analyze-video/
 
-Roadmap
-v0.2 (next)
-Object tracking (track IDs across frames)
-High-level events (person entered / exited)
-Timeline-based output instead of raw frame data
+Upload a video file.
+Response contains analysis_id and summary info
 
-v0.3
-LLM-based video summarization
-Natural language Q&A over detected events
+2. Ask Questions About the Video
 
-v0.4+
-Web frontend (Next.js)
-Result storage and retrieval
-API authentication & rate limiting
+POST /analysis/{analysis_id}/ask
 
-----------------------------------------------------------------
+POST /analysis/{analysis_id}/ask
+
+Example body:
+{
+  "question": "When was it crowded?"
+}
+
+## Supported questions include:
+How many people?
+When was it crowded?
+When did the crowd start growing?
+What was the most dynamic moment?
+Give me highlights
+Give me a summary
+
+3. Get Generated Artifacts
+GET /analysis/{analysis_id}/summary
+GET /analysis/{analysis_id}/stats
+GET /analysis/{analysis_id}/highlights
+GET /analysis/{analysis_id}/timeline
+
+---
+
+# Design Principles
+
+Deterministic and explainable logic
+No hidden decisions
+Every answer backed by data
+Built for extension (LLMs, databases, dashboards)
+
+LLMs will be added after structured understanding is complete
