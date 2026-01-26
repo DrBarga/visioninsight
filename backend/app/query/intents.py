@@ -44,4 +44,9 @@ def detect_intent(question: str) -> str:
     if re.search(r"\b(timeline|frames|frame count|timeline count)\b", q):
         return "timeline_info"
 
+    # highlights
+    if re.search(r"\b(highlights?|interesting moments?|best moments?|top moments?|key moments?)\b", q):
+        return "highlights"
+
+
     return "unknown"

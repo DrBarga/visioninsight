@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import shutil
 import uuid
@@ -8,7 +10,10 @@ import cv2
 
 from app.detection.yolo import YOLODetector
 from app.tracking.iou_tracker import IOUTracker
+
 from app.analytics.stats_builder import StatsBuilder
+from app.analytics.highlights_builder import HighlightsBuilder
+from app.analytics.quality_builder import TrackingQualityBuilder
 
 
 class VideoProcessor:
@@ -20,21 +25,17 @@ class VideoProcessor:
     def _ensure_dir(self, p: Path) -> None:
         p.mkdir(parents=True, exist_ok=True)
 
-    def process(self, input_path: str, output_path: Optional[str] = None, analysis_id: Optional[str] = None):
-        """
-        Process video, write artifacts to runs/<analysis_id>/ and return compact summary.
-        """
+    def process(self, input_path: str, analysis_id: Optional[str] = None) -> dict:
         analysis_id = analysis_id or str(uuid.uuid4())
         run_dir = self.runs_dir / analysis_id
         self._ensure_dir(run_dir)
 
-        # Copy input into run dir
+        # Copy input to run dir
         input_src = Path(input_path)
         input_dst = run_dir / "input.mp4"
         if input_src.resolve() != input_dst.resolve():
             shutil.copyfile(str(input_src), str(input_dst))
 
-        # Output in run dir
         output_dst = run_dir / "output.mp4"
 
         cap = cv2.VideoCapture(str(input_dst))
@@ -49,32 +50,21 @@ class VideoProcessor:
             str(output_dst),
             cv2.VideoWriter_fourcc(*"mp4v"),
             fps,
-            (width, height),
+            (width, height)
         )
 
-        # Artifact files
+        # Paths
         timeline_path = run_dir / "timeline.jsonl"
         events_path = run_dir / "events.jsonl"
         people_path = run_dir / "people.jsonl"
+
         meta_path = run_dir / "meta.json"
-        summary_path = run_dir / "summary.json"
         stats_path = run_dir / "stats.json"
+        highlights_path = run_dir / "highlights.json"
+        quality_path = run_dir / "quality.json"
+        summary_path = run_dir / "summary.json"
 
-        # --- Tracking & event intelligence (anti-flicker) ---
-        min_presence_sec = 0.3   # must be present for >=0.3s to count as entered
-        min_absence_sec = 0.7    # must be absent for >=0.7s to count as exited
-        min_presence_frames = max(1, int(fps * min_presence_sec))
-        min_absence_frames = max(1, int(fps * min_absence_sec))
-
-        # track_state[tid] = {"first_seen": int, "last_seen": int, "confirmed": bool}
-        track_state = {}
-
-        # Bookkeeping
-        frame_id = 0
-        timeline_count = 0
-        seen_tracks = set()
-
-        # Write meta upfront
+        # Meta
         meta = {
             "analysis_id": analysis_id,
             "input_file": "input.mp4",
@@ -84,17 +74,21 @@ class VideoProcessor:
             "fps": fps,
             "tracker": {"type": "IOUTracker", "iou_threshold": 0.3, "max_missed": 30},
             "detector": {"type": "YOLOv8", "model": "yolov8n.pt"},
-            "version": "0.3.7",
-            "events_logic": {
-                "min_presence_sec": min_presence_sec,
-                "min_absence_sec": min_absence_sec
-            }
+            "version": "0.3.8",
         }
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        with open(timeline_path, "w", encoding="utf-8") as f_tl, \
-             open(events_path, "w", encoding="utf-8") as f_ev, \
-             open(people_path, "w", encoding="utf-8") as f_people:
+        # Tracking bookkeeping
+        frame_id = 0
+        timeline_count = 0
+        seen_tracks = set()
+        last_seen = {}
+        exit_threshold = int(fps * 2)
+
+        # 1) Write JSONL artifacts FIRST
+        with timeline_path.open("w", encoding="utf-8") as f_tl, \
+             events_path.open("w", encoding="utf-8") as f_ev, \
+             people_path.open("w", encoding="utf-8") as f_people:
 
             while True:
                 ret, frame = cap.read()
@@ -103,65 +97,49 @@ class VideoProcessor:
 
                 processed_frame, detections = self.detector.detect_frame(frame)
 
-                # Keep only persons (COCO: person=0)
                 people = [d for d in detections if d.get("class_id") == 0]
-
-                # Tracking (adds track_id)
                 people = self.tracker.update(frame_id, people)
 
-                time_sec = round(frame_id / fps, 2)
-
-                # --- Smarter enter/exit events ---
                 events = []
-                current_ids = set()
-
                 for d in people:
-                    tid = d["track_id"]
-                    current_ids.add(tid)
+                    tid = d.get("track_id")
+                    if tid is None:
+                        continue
 
-                    st = track_state.get(tid)
-                    if st is None:
-                        track_state[tid] = {"first_seen": frame_id, "last_seen": frame_id, "confirmed": False}
-                        st = track_state[tid]
-                    else:
-                        st["last_seen"] = frame_id
-
-                    # confirm enter only after stable presence
-                    if not st["confirmed"] and (frame_id - st["first_seen"]) >= min_presence_frames:
-                        st["confirmed"] = True
+                    last_seen[tid] = frame_id
+                    if tid not in seen_tracks:
                         seen_tracks.add(tid)
                         events.append({"type": "person_entered", "track_id": tid})
 
-                # confirm exits only after stable absence (for confirmed tracks)
-                for tid, st in list(track_state.items()):
-                    if st["confirmed"]:
-                        if tid not in current_ids and (frame_id - st["last_seen"]) >= min_absence_frames:
-                            events.append({"type": "person_exited", "track_id": tid})
-                            del track_state[tid]
+                for tid, last_fr in list(last_seen.items()):
+                    if frame_id - last_fr > exit_threshold:
+                        events.append({"type": "person_exited", "track_id": tid})
+                        del last_seen[tid]
 
-                # Write people/events/timeline JSONL
-                if people:
-                    f_people.write(json.dumps({
-                        "frame": frame_id,
-                        "time_sec": time_sec,
-                        "people": people
-                    }, ensure_ascii=False) + "\n")
-
-                if events:
-                    f_ev.write(json.dumps({
-                        "frame": frame_id,
-                        "time_sec": time_sec,
-                        "events": events
-                    }, ensure_ascii=False) + "\n")
-
-                # Timeline stores both
                 if people or events:
+                    time_sec = round(frame_id / fps, 2)
+
+                    if people:
+                        f_people.write(json.dumps({
+                            "frame": frame_id,
+                            "time_sec": time_sec,
+                            "people": people
+                        }, ensure_ascii=False) + "\n")
+
+                    if events:
+                        f_ev.write(json.dumps({
+                            "frame": frame_id,
+                            "time_sec": time_sec,
+                            "events": events
+                        }, ensure_ascii=False) + "\n")
+
                     f_tl.write(json.dumps({
                         "frame": frame_id,
                         "time_sec": time_sec,
                         "people": people,
                         "events": events
                     }, ensure_ascii=False) + "\n")
+
                     timeline_count += 1
 
                 out.write(processed_frame)
@@ -170,24 +148,41 @@ class VideoProcessor:
         cap.release()
         out.release()
 
-        # --- Build stats.json (v0.3.5) ---
+        # 2) Build stats (IMPORTANT: pass Path, not str!)
         stats_builder = StatsBuilder(
+            high_density_threshold=10,
             min_window_sec=0.7,
-            smoothing_sec=0.5,
-            dynamics_window_sec=1.0,
-            top_percentile=90
+            crowd_smoothing_sec=0.5
         )
 
-        stats = stats_builder.build(
+        stats = stats_builder.build_from_timeline_jsonl(
             analysis_id=analysis_id,
             timeline_path=timeline_path,
             fps=fps,
             events_path=events_path
         )
 
-        stats_path.write_text(json.dumps(stats.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+        stats_dict = stats.to_dict() if hasattr(stats, "to_dict") else stats
+        if not isinstance(stats_dict, dict):
+            stats_dict = {}
 
-        # Summary
+        stats_path.write_text(json.dumps(stats_dict, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # 3) Build highlights
+        highlights_builder = HighlightsBuilder()
+        highlights = highlights_builder.build_from_stats_dict(analysis_id=analysis_id, stats=stats_dict)
+        highlights_path.write_text(json.dumps(highlights.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # 4) Build tracking quality
+        quality_builder = TrackingQualityBuilder(short_track_threshold_sec=0.7)
+        quality = quality_builder.build_from_people_jsonl(
+            analysis_id=analysis_id,
+            fps=fps,
+            people_jsonl_path=str(people_path)
+        )
+        quality_path.write_text(json.dumps(quality.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # 5) Summary
         summary = {
             "analysis_id": analysis_id,
             "tracks_summary": {
@@ -200,11 +195,14 @@ class VideoProcessor:
                 "meta": str(meta_path),
                 "summary": str(summary_path),
                 "stats": str(stats_path),
+                "highlights": str(highlights_path),
                 "timeline_jsonl": str(timeline_path),
                 "events_jsonl": str(events_path),
                 "people_jsonl": str(people_path),
                 "output_video": str(output_dst),
-            },
+                "quality": str(quality_path),
+            }
         }
+
         summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
         return summary

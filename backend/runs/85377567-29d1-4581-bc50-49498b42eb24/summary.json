@@ -1,0 +1,50 @@
+{
+  "analysis_id": "85377567-29d1-4581-bc50-49498b42eb24",
+  "tracks_summary": {
+    "unique_people": 30,
+    "track_ids": [
+      1,
+      2,
+      3,
+      6,
+      7,
+      8,
+      10,
+      13,
+      14,
+      15,
+      16,
+      17,
+      19,
+      21,
+      23,
+      24,
+      25,
+      26,
+      29,
+      30,
+      34,
+      36,
+      39,
+      41,
+      42,
+      43,
+      46,
+      48,
+      55,
+      58
+    ]
+  },
+  "timeline_count": 354,
+  "artifacts": {
+    "run_dir": "runs\\85377567-29d1-4581-bc50-49498b42eb24",
+    "meta": "runs\\85377567-29d1-4581-bc50-49498b42eb24\\meta.json",
+    "summary": "runs\\85377567-29d1-4581-bc50-49498b42eb24\\summary.json",
+    "stats": "runs\\85377567-29d1-4581-bc50-49498b42eb24\\stats.json",
+    "highlights": "runs\\85377567-29d1-4581-bc50-49498b42eb24\\highlights.json",
+    "timeline_jsonl": "runs\\85377567-29d1-4581-bc50-49498b42eb24\\timeline.jsonl",
+    "events_jsonl": "runs\\85377567-29d1-4581-bc50-49498b42eb24\\events.jsonl",
+    "people_jsonl": "runs\\85377567-29d1-4581-bc50-49498b42eb24\\people.jsonl",
+    "output_video": "runs\\85377567-29d1-4581-bc50-49498b42eb24\\output.mp4"
+  }
+}

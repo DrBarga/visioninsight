@@ -1,0 +1,9 @@
+{
+  "analysis_id": "be09ca80-60a0-460d-9787-6ab6ac79c802",
+  "fps": 30.0,
+  "width": 720,
+  "height": 1280,
+  "detector": "YOLOv8",
+  "tracker": "IOUTracker",
+  "version": "0.3.8"
+}

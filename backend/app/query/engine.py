@@ -1,4 +1,3 @@
-# app/query/engine.py
 import json
 import os
 from typing import Dict, Any, Tuple, List, Optional
@@ -39,6 +38,7 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
     summary_path = os.path.join(run_dir, "summary.json")
     timeline_path = os.path.join(run_dir, "timeline.jsonl")
     events_path = os.path.join(run_dir, "events.jsonl")
+    highlights_path = os.path.join(run_dir, "highlights.json")
 
     if not os.path.exists(summary_path):
         return ("error", "Summary not found for this analysis.", {}, 0.2)
@@ -148,7 +148,6 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
         top = windows[:10]
         intervals = [f"{w['start_sec']}s–{w['end_sec']}s" for w in top]
 
-        # detect window type
         types = set(w.get("type", "") for w in top)
         if "stable_crowd" in types:
             label = f"stable high-density windows (threshold={threshold})"
@@ -160,6 +159,44 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
         answer = f"Most crowded moments ({label}): " + ", ".join(intervals) + "."
         evidence = {"crowd_windows": top, "count": len(windows), "threshold": threshold}
         return (intent, answer, evidence, 0.9)
+
+    if intent in ("crowd_growth", "crowd_drop", "most_dynamic"):
+        if not stats:
+            return (intent, "Stats not found for this analysis.", {}, 0.4)
+
+        dyn = stats.get("crowd_dynamics") or {}
+
+        if intent == "crowd_growth":
+            g = dyn.get("fastest_growth")
+            if not g:
+                return (intent, "No clear crowd growth detected in this video.", {"crowd_dynamics": dyn}, 0.65)
+            answer = (
+                f"Fastest crowd growth: +{g['delta']} (from {g['from']} to {g['to']}) "
+                f"during {g['start_sec']}s–{g['end_sec']}s."
+            )
+            return (intent, answer, {"fastest_growth": g, "source": "stats.json"}, 0.9)
+
+        if intent == "crowd_drop":
+            d = dyn.get("fastest_drop")
+            if not d:
+                return (intent, "No clear crowd drop detected in this video.", {"crowd_dynamics": dyn}, 0.65)
+            answer = (
+                f"Fastest crowd drop: {d['delta']} (from {d['from']} to {d['to']}) "
+                f"during {d['start_sec']}s–{d['end_sec']}s."
+            )
+            return (intent, answer, {"fastest_drop": d, "source": "stats.json"}, 0.9)
+
+        if intent == "most_dynamic":
+            m = dyn.get("most_dynamic_window")
+            if not m:
+                return (
+                    intent,
+                    "No strong event burst detected (enter/exit). Try asking about crowd growth/peak.",
+                    {"crowd_dynamics": dyn},
+                    0.7,
+                )
+            answer = f"Most dynamic moment (enter/exit burst): {m['count']} events during {m['start_sec']}s–{m['end_sec']}s."
+            return (intent, answer, {"most_dynamic_window": m, "source": "stats.json"}, 0.9)
 
     if intent == "events":
         if os.path.exists(events_path):
@@ -188,43 +225,30 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
 
         return (intent, "Events file not found for this analysis.", {}, 0.4)
 
-    if intent in ("crowd_growth", "crowd_drop", "most_dynamic"):
-        if not stats:
-            return (intent, "Stats not found for this analysis.", {}, 0.4)
-
-        dyn = stats.get("crowd_dynamics") or {}
-
-        if intent == "crowd_growth":
-            g = dyn.get("fastest_growth")
-            if not g:
-                return (intent, "No clear crowd growth detected in this video.", {"crowd_dynamics": dyn}, 0.65)
-            answer = (
-                f"Fastest crowd growth: +{g['delta']} (from {g['from']} to {g['to']}) "
-                f"during {g['start_sec']}s–{g['end_sec']}s."
+    if intent == "highlights":
+        if not os.path.exists(highlights_path):
+            return (
+                intent,
+                "Highlights not found. Re-run analysis to generate highlights.json.",
+                {},
+                0.5,
             )
-            return (intent, answer, {"fastest_growth": g}, 0.9)
 
-        if intent == "crowd_drop":
-            d = dyn.get("fastest_drop")
-            if not d:
-                return (intent, "No clear crowd drop detected in this video.", {"crowd_dynamics": dyn}, 0.65)
-            answer = (
-                f"Fastest crowd drop: {d['delta']} (from {d['from']} to {d['to']}) "
-                f"during {d['start_sec']}s–{d['end_sec']}s."
-            )
-            return (intent, answer, {"fastest_drop": d}, 0.9)
+        data = _read_json(highlights_path)
+        highlights = data.get("highlights") or []
+        if not highlights:
+            return (intent, "No highlights were generated for this video.", {"highlights": []}, 0.7)
 
-        if intent == "most_dynamic":
-            m = dyn.get("most_dynamic_window")
-            if not m:
-                return (
-                    intent,
-                    "No strong event burst detected (enter/exit). Try asking about crowd growth/peak.",
-                    {"crowd_dynamics": dyn},
-                    0.7,
-                )
-            answer = f"Most dynamic moment (enter/exit burst): {m['count']} events during {m['start_sec']}s–{m['end_sec']}s."
-            return (intent, answer, {"most_dynamic_window": m}, 0.9)
+        top = highlights[:6]
+        short = []
+        for h in top:
+            t = h.get("type", "highlight")
+            a = h.get("start_sec", 0)
+            b = h.get("end_sec", 0)
+            short.append(f"{t}: {a}s–{b}s")
+
+        answer = "Top highlights: " + ", ".join(short) + "."
+        return (intent, answer, {"highlights": top, "count": len(highlights)}, 0.9)
 
     if intent == "summary":
         unique_people = summary.get("tracks_summary", {}).get("unique_people", 0)
@@ -261,7 +285,6 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
             else:
                 parts.append(f"crowd_windows=0 (threshold={threshold})")
 
-            # include dynamics if present
             dyn = stats.get("crowd_dynamics") or {}
             if dyn.get("fastest_growth"):
                 evidence["fastest_growth"] = dyn["fastest_growth"]
@@ -273,18 +296,27 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
                 evidence["most_dynamic_window"] = dyn["most_dynamic_window"]
                 parts.append(f"most_dynamic_events={dyn['most_dynamic_window'].get('count')}")
 
+            # include highlights count if available
+            if os.path.exists(highlights_path):
+                try:
+                    hdata = _read_json(highlights_path)
+                    hlist = hdata.get("highlights") or []
+                    evidence["highlights_count"] = len(hlist)
+                    parts.append(f"highlights={len(hlist)}")
+                except Exception:
+                    pass
+
             answer = "Summary: " + ", ".join(parts) + "."
             return (intent, answer, evidence, 0.9)
 
-        # fallback if no stats.json exists
         answer = f"Summary: unique_people={unique_people}, timeline_entries={timeline_count}."
         return (intent, answer, evidence, 0.75)
 
     return (
         "unknown",
-        "I can answer questions about counts, peak crowd, crowded windows, crowd dynamics, timeline, and enter/exit events. "
+        "I can answer questions about counts, peak crowd, crowded windows, crowd dynamics, highlights, timeline, and enter/exit events. "
         "Try: 'How many people?', 'When was the peak crowd?', 'When was it crowded?', "
-        "'When did the crowd start growing?', 'What was the most dynamic moment?', 'Give me a summary'.",
+        "'When did the crowd start growing?', 'What was the most dynamic moment?', 'Give me highlights', 'Give me a summary'.",
         {
             "supported_intents": [
                 "count_people",
@@ -293,6 +325,7 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
                 "crowd_growth",
                 "crowd_drop",
                 "most_dynamic",
+                "highlights",
                 "timeline_info",
                 "events",
                 "summary",

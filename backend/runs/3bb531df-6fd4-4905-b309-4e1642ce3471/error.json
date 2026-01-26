@@ -1,0 +1,5 @@
+{
+  "analysis_id": "3bb531df-6fd4-4905-b309-4e1642ce3471",
+  "error": "'StatsResult' object has no attribute 'get'",
+  "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\bogda\\OneDrive\\Desktop\\visioninsight\\backend\\app\\video\\processor.py\", line 234, in process\n    highlights_payload = hb.build_from_stats(analysis_id=analysis_id, stats=stats_obj)\n                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"C:\\Users\\bogda\\OneDrive\\Desktop\\visioninsight\\backend\\app\\analytics\\highlights_builder.py\", line 20, in build_from_stats\n    pc = (stats.get(\"people_count\") or {})\n          ^^^^^^^^^\nAttributeError: 'StatsResult' object has no attribute 'get'\n"
+}

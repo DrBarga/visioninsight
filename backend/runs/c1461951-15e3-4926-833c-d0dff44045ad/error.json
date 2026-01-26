@@ -1,0 +1,5 @@
+{
+  "analysis_id": "c1461951-15e3-4926-833c-d0dff44045ad",
+  "error": "TrackingQualityBuilder.build_from_people_jsonl() got an unexpected keyword argument 'people_path'",
+  "traceback": "Traceback (most recent call last):\n  File \"C:\\Users\\bogda\\OneDrive\\Desktop\\visioninsight\\backend\\app\\video\\processor.py\", line 265, in process\n    quality_payload = qb.build_from_people_jsonl(\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^\nTypeError: TrackingQualityBuilder.build_from_people_jsonl() got an unexpected keyword argument 'people_path'\n"
+}

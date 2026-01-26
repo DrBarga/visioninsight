@@ -1,0 +1,64 @@
+{"frame": 9, "time_sec": 0.3, "events": [{"type": "person_entered", "track_id": 1}, {"type": "person_entered", "track_id": 2}]}
+{"frame": 15, "time_sec": 0.5, "events": [{"type": "person_entered", "track_id": 3}]}
+{"frame": 30, "time_sec": 1.0, "events": [{"type": "person_entered", "track_id": 6}]}
+{"frame": 32, "time_sec": 1.07, "events": [{"type": "person_entered", "track_id": 7}]}
+{"frame": 37, "time_sec": 1.23, "events": [{"type": "person_entered", "track_id": 8}]}
+{"frame": 53, "time_sec": 1.77, "events": [{"type": "person_exited", "track_id": 2}, {"type": "person_exited", "track_id": 7}]}
+{"frame": 57, "time_sec": 1.9, "events": [{"type": "person_entered", "track_id": 10}]}
+{"frame": 68, "time_sec": 2.27, "events": [{"type": "person_entered", "track_id": 7}]}
+{"frame": 82, "time_sec": 2.73, "events": [{"type": "person_exited", "track_id": 6}]}
+{"frame": 84, "time_sec": 2.8, "events": [{"type": "person_entered", "track_id": 14}]}
+{"frame": 86, "time_sec": 2.87, "events": [{"type": "person_entered", "track_id": 16}]}
+{"frame": 94, "time_sec": 3.13, "events": [{"type": "person_entered", "track_id": 13}, {"type": "person_entered", "track_id": 17}]}
+{"frame": 95, "time_sec": 3.17, "events": [{"type": "person_exited", "track_id": 10}]}
+{"frame": 101, "time_sec": 3.37, "events": [{"type": "person_entered", "track_id": 6}]}
+{"frame": 102, "time_sec": 3.4, "events": [{"type": "person_exited", "track_id": 8}]}
+{"frame": 106, "time_sec": 3.53, "events": [{"type": "person_entered", "track_id": 15}]}
+{"frame": 107, "time_sec": 3.57, "events": [{"type": "person_entered", "track_id": 19}]}
+{"frame": 116, "time_sec": 3.87, "events": [{"type": "person_exited", "track_id": 13}]}
+{"frame": 126, "time_sec": 4.2, "events": [{"type": "person_entered", "track_id": 13}]}
+{"frame": 127, "time_sec": 4.23, "events": [{"type": "person_entered", "track_id": 21}]}
+{"frame": 135, "time_sec": 4.5, "events": [{"type": "person_exited", "track_id": 16}]}
+{"frame": 138, "time_sec": 4.6, "events": [{"type": "person_exited", "track_id": 17}]}
+{"frame": 153, "time_sec": 5.1, "events": [{"type": "person_entered", "track_id": 23}]}
+{"frame": 162, "time_sec": 5.4, "events": [{"type": "person_exited", "track_id": 19}]}
+{"frame": 165, "time_sec": 5.5, "events": [{"type": "person_exited", "track_id": 21}]}
+{"frame": 176, "time_sec": 5.87, "events": [{"type": "person_entered", "track_id": 24}]}
+{"frame": 181, "time_sec": 6.03, "events": [{"type": "person_exited", "track_id": 15}]}
+{"frame": 190, "time_sec": 6.33, "events": [{"type": "person_exited", "track_id": 3}]}
+{"frame": 191, "time_sec": 6.37, "events": [{"type": "person_exited", "track_id": 14}]}
+{"frame": 196, "time_sec": 6.53, "events": [{"type": "person_entered", "track_id": 26}, {"type": "person_entered", "track_id": 25}]}
+{"frame": 201, "time_sec": 6.7, "events": [{"type": "person_entered", "track_id": 29}]}
+{"frame": 206, "time_sec": 6.87, "events": [{"type": "person_entered", "track_id": 15}]}
+{"frame": 208, "time_sec": 6.93, "events": [{"type": "person_exited", "track_id": 13}]}
+{"frame": 209, "time_sec": 6.97, "events": [{"type": "person_exited", "track_id": 24}]}
+{"frame": 216, "time_sec": 7.2, "events": [{"type": "person_exited", "track_id": 1}]}
+{"frame": 217, "time_sec": 7.23, "events": [{"type": "person_entered", "track_id": 14}, {"type": "person_exited", "track_id": 6}]}
+{"frame": 218, "time_sec": 7.27, "events": [{"type": "person_entered", "track_id": 30}]}
+{"frame": 220, "time_sec": 7.33, "events": [{"type": "person_exited", "track_id": 26}]}
+{"frame": 222, "time_sec": 7.4, "events": [{"type": "person_exited", "track_id": 29}]}
+{"frame": 228, "time_sec": 7.6, "events": [{"type": "person_exited", "track_id": 25}]}
+{"frame": 231, "time_sec": 7.7, "events": [{"type": "person_exited", "track_id": 15}]}
+{"frame": 233, "time_sec": 7.77, "events": [{"type": "person_entered", "track_id": 6}]}
+{"frame": 238, "time_sec": 7.93, "events": [{"type": "person_exited", "track_id": 7}]}
+{"frame": 248, "time_sec": 8.27, "events": [{"type": "person_entered", "track_id": 34}]}
+{"frame": 252, "time_sec": 8.4, "events": [{"type": "person_exited", "track_id": 14}]}
+{"frame": 272, "time_sec": 9.07, "events": [{"type": "person_exited", "track_id": 6}, {"type": "person_exited", "track_id": 34}]}
+{"frame": 287, "time_sec": 9.57, "events": [{"type": "person_entered", "track_id": 6}, {"type": "person_entered", "track_id": 36}]}
+{"frame": 301, "time_sec": 10.03, "events": [{"type": "person_exited", "track_id": 30}]}
+{"frame": 309, "time_sec": 10.3, "events": [{"type": "person_entered", "track_id": 42}, {"type": "person_entered", "track_id": 39}]}
+{"frame": 311, "time_sec": 10.37, "events": [{"type": "person_entered", "track_id": 41}]}
+{"frame": 313, "time_sec": 10.43, "events": [{"type": "person_exited", "track_id": 36}]}
+{"frame": 314, "time_sec": 10.47, "events": [{"type": "person_entered", "track_id": 43}]}
+{"frame": 316, "time_sec": 10.53, "events": [{"type": "person_exited", "track_id": 6}]}
+{"frame": 318, "time_sec": 10.6, "events": [{"type": "person_entered", "track_id": 46}]}
+{"frame": 323, "time_sec": 10.77, "events": [{"type": "person_entered", "track_id": 48}]}
+{"frame": 341, "time_sec": 11.37, "events": [{"type": "person_exited", "track_id": 39}]}
+{"frame": 342, "time_sec": 11.4, "events": [{"type": "person_exited", "track_id": 46}]}
+{"frame": 343, "time_sec": 11.43, "events": [{"type": "person_exited", "track_id": 42}]}
+{"frame": 344, "time_sec": 11.47, "events": [{"type": "person_exited", "track_id": 48}]}
+{"frame": 345, "time_sec": 11.5, "events": [{"type": "person_exited", "track_id": 43}]}
+{"frame": 351, "time_sec": 11.7, "events": [{"type": "person_exited", "track_id": 23}]}
+{"frame": 354, "time_sec": 11.8, "events": [{"type": "person_entered", "track_id": 55}]}
+{"frame": 355, "time_sec": 11.83, "events": [{"type": "person_exited", "track_id": 41}]}
+{"frame": 363, "time_sec": 12.1, "events": [{"type": "person_entered", "track_id": 58}]}
