@@ -1,0 +1,19 @@
+{
+  "analysis_id": "9152e4d3-10bb-402b-af48-4d607340256d",
+  "input_file": "input.mp4",
+  "output_file": "output.mp4",
+  "width": 720,
+  "height": 1280,
+  "fps": 30.0,
+  "detector": {
+    "type": "YOLOv8",
+    "model": "yolov8n.pt",
+    "profile": "balanced"
+  },
+  "tracker": {
+    "type": "IOUTracker",
+    "iou_threshold": 0.3,
+    "max_missed": 30
+  },
+  "version": "0.3.9+profiles"
+}

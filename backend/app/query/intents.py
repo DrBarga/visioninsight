@@ -2,39 +2,54 @@ import re
 
 
 def detect_intent(question: str) -> str:
-    q = question.lower().strip()
+    q = (question or "").lower().strip()
 
-    # counts
+    # ---------- PEOPLE ----------
     if re.search(r"\b(how many|count|total)\b", q) and re.search(r"\b(people|persons)\b", q):
         return "count_people"
 
-    # peak
     if re.search(r"\b(peak|max|most)\b", q) and re.search(r"\b(people|crowd)\b", q):
         return "peak_people"
 
-    # crowded windows
-    if re.search(r"\b(crowded|crowding|dense|packed|busy|most crowded|crowd windows|crowded moments)\b", q):
+    # ---------- CROWD WINDOWS ----------
+    if re.search(r"\b(crowded|crowding|dense|high density|most crowded|busy|packed)\b", q) or \
+       re.search(r"\b(when)\b.*\b(crowd|crowded|busy|packed)\b", q) or \
+       re.search(r"\b(a lot of people|lots of people)\b", q):
         return "crowd_windows"
 
-    # crowd growth (covers "start growing")
-    if (
-        re.search(r"\b(grow|growing|grew|increase|increasing|rise|rising|build up|building up)\b", q)
-        and re.search(r"\b(crowd|people)\b", q)
-    ):
+    # ---------- DYNAMICS ----------
+    if re.search(r"\b(grow|growing|increase|start growing)\b", q) and re.search(r"\b(crowd|people)\b", q):
         return "crowd_growth"
 
-    # crowd drop / dispersal
-    if (
-        re.search(r"\b(drop|dropping|decrease|decreasing|fell|falling|shrink|shrinking|disperse|dispersing|leave|leaving)\b", q)
-        and re.search(r"\b(crowd|people)\b", q)
-    ):
+    if re.search(r"\b(drop|decrease|fall)\b", q) and re.search(r"\b(crowd|people)\b", q):
         return "crowd_drop"
 
-    # dynamic moment
-    if re.search(r"\b(most dynamic|most intense|event burst|highest activity|highlight)\b", q):
+    if re.search(r"\b(dynamic|most dynamic)\b", q):
         return "most_dynamic"
 
-    # summary / events / timeline
+    # ---------- HIGHLIGHTS / QUALITY ----------
+    if re.search(r"\b(highlight|highlights|best moments|top moments)\b", q):
+        return "highlights"
+
+    if re.search(r"\b(quality|tracking quality|tracker quality)\b", q):
+        return "quality"
+
+    # ---------- OBJECTS ----------
+    # explicit list
+    if re.search(r"\b(what)\b.*\b(objects|items)\b.*\b(detected|found|seen)\b", q) or \
+       re.search(r"\b(objects detected|detected objects)\b", q):
+        return "list_objects"
+
+    # explicit count
+    if re.search(r"\b(how many|count|total)\b", q) and re.search(r"\b(objects|items)\b", q):
+        return "count_objects"
+
+    # IMPORTANT: allow "How many cars/trucks/buses/..." etc.
+    # Heuristic: "how many/count/total" + NOT people/crowd => treat as objects count.
+    if re.search(r"\b(how many|count|total)\b", q) and not re.search(r"\b(people|persons|crowd)\b", q):
+        return "count_objects"
+
+    # ---------- GENERIC ----------
     if re.search(r"\b(summary|summarize|overview|what happened)\b", q):
         return "summary"
 
@@ -43,10 +58,5 @@ def detect_intent(question: str) -> str:
 
     if re.search(r"\b(timeline|frames|frame count|timeline count)\b", q):
         return "timeline_info"
-
-    # highlights
-    if re.search(r"\b(highlights?|interesting moments?|best moments?|top moments?|key moments?)\b", q):
-        return "highlights"
-
 
     return "unknown"
