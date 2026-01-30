@@ -1,0 +1,27 @@
+{
+  "analysis_id": "bde3f27a-f2c1-4db0-bfd6-f232a35c634a",
+  "tracks_summary": {
+    "unique_people": 4,
+    "track_ids": [
+      1,
+      2,
+      3,
+      7
+    ]
+  },
+  "timeline_count": 585,
+  "artifacts": {
+    "run_dir": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a",
+    "meta": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\meta.json",
+    "summary": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\summary.json",
+    "stats": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\stats.json",
+    "highlights": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\highlights.json",
+    "quality": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\quality.json",
+    "timeline_jsonl": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\timeline.jsonl",
+    "events_jsonl": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\events.jsonl",
+    "people_jsonl": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\people.jsonl",
+    "objects_jsonl": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\objects.jsonl",
+    "objects_stats": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\objects_stats.json",
+    "output_video": "runs\\bde3f27a-f2c1-4db0-bfd6-f232a35c634a\\output.mp4"
+  }
+}

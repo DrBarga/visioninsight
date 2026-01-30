@@ -25,12 +25,33 @@ def _is_person(det: Dict[str, Any]) -> bool:
     return isinstance(cname, str) and cname.lower() == "person"
 
 
+def _is_confirmed(track: Dict[str, Any]) -> bool:
+    return track.get("track_state") == "confirmed"
+
+
 class VideoProcessor:
     def __init__(self, runs_dir: str = "runs", model_path: str = "yolov8n.pt"):
         self.runs_dir = Path(runs_dir)
         self.detector = YOLODetector(model_path=model_path, profile="balanced")
-        # Track ONLY people (как у тебя в проекте)
-        self.tracker = IOUTracker(iou_threshold=0.3, max_missed=30)
+
+        # People tracking: class-aware OK
+        self.people_tracker = IOUTracker(
+            iou_threshold=0.3,
+            max_missed=30,
+            min_hits=3,
+            smooth_alpha=0.8,
+            match_by_class=True,
+        )
+
+        # Objects tracking:
+        # IMPORTANT: match_by_class=False to prevent class-flip splitting (train -> bus -> motorcycle)
+        self.objects_tracker = IOUTracker(
+            iou_threshold=0.25,
+            max_missed=15,
+            min_hits=2,
+            smooth_alpha=0.8,
+            match_by_class=False,
+        )
 
     def _ensure_dir(self, p: Path) -> None:
         p.mkdir(parents=True, exist_ok=True)
@@ -79,7 +100,7 @@ class VideoProcessor:
         objects_stats_path = run_dir / "objects_stats.json"
         summary_path = run_dir / "summary.json"
 
-        # Apply detection profile (manual safest)
+        # Apply detection profile
         self.detector.set_profile(detection_profile)
 
         meta = {
@@ -94,16 +115,22 @@ class VideoProcessor:
                 "model": getattr(self.detector, "model_name", "unknown"),
                 "profile": getattr(self.detector, "profile_name", str(detection_profile)),
             },
-            "tracker": {"type": "IOUTracker", "iou_threshold": 0.3, "max_missed": 30},
-            "version": "0.3.9+profiles",
+            "tracker": {
+                "people": {"type": "IOUTracker", "iou_threshold": 0.3, "max_missed": 30, "min_hits": 3, "match_by_class": True},
+                "objects": {"type": "IOUTracker", "iou_threshold": 0.25, "max_missed": 15, "min_hits": 2, "match_by_class": False},
+            },
+            "version": "0.3.10+tracking-fixes",
         }
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
         frame_id = 0
         timeline_count = 0
 
-        seen_tracks = set()
-        last_seen: Dict[int, int] = {}
+        # IMPORTANT FIX: count unique people only for confirmed tracks
+        seen_people_confirmed_tracks = set()
+
+        # IMPORTANT FIX: last_seen and enter/exit should track only confirmed tracks
+        last_seen_confirmed: Dict[int, int] = {}
         exit_threshold = int(fps * 2)  # 2 seconds
 
         with timeline_path.open("w", encoding="utf-8") as f_tl, \
@@ -119,41 +146,57 @@ class VideoProcessor:
                 processed_frame, detections = self.detector.detect_frame(frame)
 
                 det_people_raw = [d for d in detections if _is_person(d)]
-                det_objects = [d for d in detections if not _is_person(d)]
+                det_objects_raw = [d for d in detections if not _is_person(d)]
 
-                # Track only people
-                det_people = self.tracker.update(frame_id, det_people_raw)
+                # Track people + objects
+                det_people_tracks = self.people_tracker.update(frame_id, det_people_raw)
+                det_objects_tracks = self.objects_tracker.update(frame_id, det_objects_raw)
 
-                # Events
+                # Events for people (confirmed only)
                 events: List[Dict[str, Any]] = []
-                for d in det_people:
-                    tid = d.get("track_id")
+                for t in det_people_tracks:
+                    if not _is_confirmed(t):
+                        continue
+                    tid = t.get("track_id")
                     if tid is None:
                         continue
                     tid = int(tid)
-                    last_seen[tid] = frame_id
-                    if tid not in seen_tracks:
-                        seen_tracks.add(tid)
+
+                    # update last seen for confirmed only
+                    last_seen_confirmed[tid] = frame_id
+
+                    # entered when first time confirmed track seen
+                    if tid not in seen_people_confirmed_tracks:
+                        seen_people_confirmed_tracks.add(tid)
                         events.append({"type": "person_entered", "track_id": tid})
 
-                # exits (simple TTL)
-                for tid, last_fr in list(last_seen.items()):
+                # exits (confirmed only)
+                for tid, last_fr in list(last_seen_confirmed.items()):
                     if frame_id - last_fr > exit_threshold:
                         events.append({"type": "person_exited", "track_id": int(tid)})
-                        del last_seen[tid]
+                        del last_seen_confirmed[tid]
 
                 time_sec = round(frame_id / fps, 2)
 
-                if det_people:
-                    _jsonl_write(f_people, {"frame": frame_id, "time_sec": time_sec, "people": det_people})
-                if det_objects:
-                    _jsonl_write(f_obj, {"frame": frame_id, "time_sec": time_sec, "objects": det_objects})
+                # Write people.jsonl: you can keep all tracks (tentative+confirmed) OR only confirmed.
+                # To keep current behavior stable for quality/stats, we keep ALL tracks.
+                if det_people_tracks:
+                    _jsonl_write(f_people, {"frame": frame_id, "time_sec": time_sec, "people": det_people_tracks})
+
+                # Write objects.jsonl: we keep ALL object tracks (tentative+confirmed).
+                if det_objects_tracks:
+                    _jsonl_write(f_obj, {"frame": frame_id, "time_sec": time_sec, "objects": det_objects_tracks})
+
                 if events:
                     _jsonl_write(f_ev, {"frame": frame_id, "time_sec": time_sec, "events": events})
 
                 # Golden source timeline (people + events)
-                if det_people or events:
-                    _jsonl_write(f_tl, {"frame": frame_id, "time_sec": time_sec, "people": det_people, "events": events})
+                # Keep people timeline consistent: store ALL people tracks + events.
+                if det_people_tracks or events:
+                    _jsonl_write(
+                        f_tl,
+                        {"frame": frame_id, "time_sec": time_sec, "people": det_people_tracks, "events": events},
+                    )
                     timeline_count += 1
 
                 out.write(processed_frame)
@@ -162,8 +205,7 @@ class VideoProcessor:
         cap.release()
         out.release()
 
-        # ---------------- Builders (use your real APIs) ----------------
-        # 1) stats.json
+        # -------- Builders (your real APIs) --------
         stats_result = StatsBuilder().build_from_timeline_jsonl(
             analysis_id=analysis_id,
             timeline_path=timeline_path,
@@ -173,11 +215,9 @@ class VideoProcessor:
         stats_dict = stats_result.to_dict()
         stats_path.write_text(json.dumps(stats_dict, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        # 2) highlights.json
         highlights_result = HighlightsBuilder().build_from_stats_dict(analysis_id=analysis_id, stats=stats_dict)
         highlights_path.write_text(json.dumps(highlights_result.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
-        # 3) quality.json (from people.jsonl)
         quality_result = TrackingQualityBuilder().build_from_people_jsonl(
             analysis_id=analysis_id,
             fps=fps,
@@ -185,19 +225,19 @@ class VideoProcessor:
         )
         quality_path.write_text(json.dumps(quality_result.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
-        # 4) objects_stats.json (from objects.jsonl)
+        # objects_stats will now do majority vote class per track_id
         obj_stats = ObjectsStatsBuilder().build_from_objects_jsonl(
             analysis_id=analysis_id,
             objects_jsonl_path=str(objects_path),
         )
         objects_stats_path.write_text(json.dumps(obj_stats, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        # ---------------- Summary ----------------
+        # Summary uses confirmed unique people
         summary = {
             "analysis_id": analysis_id,
             "tracks_summary": {
-                "unique_people": len(seen_tracks),
-                "track_ids": sorted(list(seen_tracks)),
+                "unique_people": len(seen_people_confirmed_tracks),
+                "track_ids": sorted(list(seen_people_confirmed_tracks)),
             },
             "timeline_count": timeline_count,
             "artifacts": {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple, Optional
 
 
 def _iou_xyxy(a: Tuple[float, float, float, float], b: Tuple[float, float, float, float]) -> float:
@@ -34,6 +34,7 @@ class Track:
     track_id: int
     bbox: Tuple[float, float, float, float]  # xyxy
     class_id: int
+    class_name: str
     confidence: float
 
     hits: int = 1
@@ -47,17 +48,13 @@ class Track:
     iou_sum: float = 0.0
     iou_count: int = 0
 
-    @property
-    def confirmed(self) -> bool:
-        return self.hits >= 1  # will be overridden by tracker min_hits logic
-
 
 class IOUTracker:
     """
     Simple IOU tracker with:
       - tentative -> confirmed tracks (min_hits)
       - bbox smoothing
-      - basic diagnostics for quality
+      - optional class-aware matching (match_by_class=True)
     """
 
     def __init__(
@@ -65,12 +62,14 @@ class IOUTracker:
         iou_threshold: float = 0.3,
         max_missed: int = 30,
         min_hits: int = 3,
-        smooth_alpha: float = 0.8
+        smooth_alpha: float = 0.8,
+        match_by_class: bool = True,
     ):
         self.iou_threshold = float(iou_threshold)
         self.max_missed = int(max_missed)
         self.min_hits = int(min_hits)
         self.smooth_alpha = float(smooth_alpha)
+        self.match_by_class = bool(match_by_class)
 
         self._next_id = 1
         self.tracks: Dict[int, Track] = {}
@@ -88,27 +87,35 @@ class IOUTracker:
         detections: list of dict with at least:
           - bbox: [x1,y1,x2,y2]
           - class_id
+          - class_name
           - confidence
-        returns detections with:
+
+        returns list of active tracks as dicts with:
           - track_id
           - track_state: "tentative" | "confirmed"
+          - bbox
+          - class_id
+          - class_name
+          - confidence
         """
         # 1) mark all tracks missed initially; will reset when matched
         for t in self.tracks.values():
             t.age += 1
             t.missed += 1
 
-        # 2) greedy match detections to existing tracks by max IOU
         unmatched_det = set(range(len(detections)))
-        unmatched_tracks = set(self.tracks.keys())
-
         matches: List[Tuple[int, int, float]] = []  # (track_id, det_idx, iou)
 
-        # Build all candidate pairs
+        # Build candidate pairs
         candidates: List[Tuple[float, int, int]] = []
         for tid, tr in self.tracks.items():
             tb = tr.bbox
             for di, d in enumerate(detections):
+                if di not in unmatched_det:
+                    continue
+                if self.match_by_class:
+                    if int(d.get("class_id", -1)) != tr.class_id:
+                        continue
                 db = tuple(d.get("bbox", [0, 0, 0, 0]))
                 i = _iou_xyxy(tb, db)
                 if i >= self.iou_threshold:
@@ -125,7 +132,6 @@ class IOUTracker:
             used_t.add(tid)
             used_d.add(di)
             matches.append((tid, di, i))
-            unmatched_tracks.discard(tid)
             unmatched_det.discard(di)
 
         # 3) apply matches
@@ -134,7 +140,6 @@ class IOUTracker:
             d = detections[di]
             db = tuple(d["bbox"])
 
-            # smooth bbox
             px1, py1, px2, py2 = tr.bbox
             x1, y1, x2, y2 = db
             sb = (
@@ -146,6 +151,7 @@ class IOUTracker:
 
             tr.bbox = sb
             tr.class_id = int(d.get("class_id", tr.class_id))
+            tr.class_name = str(d.get("class_name", tr.class_name))
             tr.confidence = float(d.get("confidence", tr.confidence))
             tr.hits += 1
             tr.missed = 0
@@ -162,6 +168,7 @@ class IOUTracker:
                 track_id=tid,
                 bbox=db,
                 class_id=int(d.get("class_id", 0)),
+                class_name=str(d.get("class_name", "")),
                 confidence=float(d.get("confidence", 0.0)),
                 hits=1,
                 age=1,
@@ -175,15 +182,13 @@ class IOUTracker:
         to_delete = []
         for tid, tr in self.tracks.items():
             if tr.missed > self.max_missed:
-                # if track never reached min_hits -> filtered as short/noise
                 if tr.hits < self.min_hits:
                     self.short_tracks_filtered += 1
                 to_delete.append(tid)
-
         for tid in to_delete:
             del self.tracks[tid]
 
-        # 6) return detections with track_id and state (for "people.jsonl")
+        # 6) return active tracks as dicts
         results: List[dict] = []
         for tid, tr in self.tracks.items():
             state = "confirmed" if tr.hits >= self.min_hits else "tentative"
@@ -192,33 +197,8 @@ class IOUTracker:
                 "track_state": state,
                 "bbox": [float(x) for x in tr.bbox],
                 "class_id": tr.class_id,
+                "class_name": tr.class_name,
                 "confidence": tr.confidence,
             })
 
         return results
-
-    def snapshot_quality(self) -> dict:
-        """
-        Lightweight live diagnostics (final report is built separately).
-        """
-        confirmed = [t for t in self.tracks.values() if t.hits >= self.min_hits]
-        avg_iou = 0.0
-        denom = 0
-        for t in confirmed:
-            if t.iou_count > 0:
-                avg_iou += (t.iou_sum / t.iou_count)
-                denom += 1
-        avg_iou = (avg_iou / denom) if denom else 0.0
-
-        return {
-            "active_tracks": len(self.tracks),
-            "active_confirmed": len(confirmed),
-            "short_tracks_filtered": self.short_tracks_filtered,
-            "avg_iou_match_active": round(avg_iou, 4),
-            "params": {
-                "iou_threshold": self.iou_threshold,
-                "max_missed": self.max_missed,
-                "min_hits": self.min_hits,
-                "smooth_alpha": self.smooth_alpha
-            }
-        }

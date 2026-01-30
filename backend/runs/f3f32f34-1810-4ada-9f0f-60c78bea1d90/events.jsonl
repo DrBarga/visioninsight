@@ -1,0 +1,24 @@
+{"frame": 0, "time_sec": 0.0, "events": [{"type": "person_entered", "track_id": 7}, {"type": "person_entered", "track_id": 48}, {"type": "person_entered", "track_id": 49}, {"type": "person_entered", "track_id": 50}, {"type": "person_entered", "track_id": 51}, {"type": "person_entered", "track_id": 52}, {"type": "person_entered", "track_id": 53}, {"type": "person_entered", "track_id": 54}, {"type": "person_entered", "track_id": 55}]}
+{"frame": 4, "time_sec": 0.13, "events": [{"type": "person_entered", "track_id": 56}]}
+{"frame": 60, "time_sec": 2.0, "events": [{"type": "person_exited", "track_id": 7}]}
+{"frame": 63, "time_sec": 2.1, "events": [{"type": "person_exited", "track_id": 49}]}
+{"frame": 69, "time_sec": 2.3, "events": [{"type": "person_exited", "track_id": 51}]}
+{"frame": 74, "time_sec": 2.47, "events": [{"type": "person_exited", "track_id": 50}]}
+{"frame": 82, "time_sec": 2.74, "events": [{"type": "person_exited", "track_id": 52}]}
+{"frame": 85, "time_sec": 2.84, "events": [{"type": "person_exited", "track_id": 48}]}
+{"frame": 86, "time_sec": 2.87, "events": [{"type": "person_exited", "track_id": 54}]}
+{"frame": 87, "time_sec": 2.9, "events": [{"type": "person_exited", "track_id": 55}]}
+{"frame": 88, "time_sec": 2.94, "events": [{"type": "person_exited", "track_id": 53}]}
+{"frame": 114, "time_sec": 3.8, "events": [{"type": "person_entered", "track_id": 57}]}
+{"frame": 116, "time_sec": 3.87, "events": [{"type": "person_entered", "track_id": 58}]}
+{"frame": 213, "time_sec": 7.11, "events": [{"type": "person_exited", "track_id": 57}]}
+{"frame": 290, "time_sec": 9.68, "events": [{"type": "person_entered", "track_id": 59}]}
+{"frame": 291, "time_sec": 9.71, "events": [{"type": "person_exited", "track_id": 58}]}
+{"frame": 380, "time_sec": 12.68, "events": [{"type": "person_exited", "track_id": 59}]}
+{"frame": 403, "time_sec": 13.45, "events": [{"type": "person_entered", "track_id": 60}]}
+{"frame": 441, "time_sec": 14.71, "events": [{"type": "person_entered", "track_id": 61}]}
+{"frame": 493, "time_sec": 16.45, "events": [{"type": "person_exited", "track_id": 60}]}
+{"frame": 531, "time_sec": 17.72, "events": [{"type": "person_exited", "track_id": 61}]}
+{"frame": 537, "time_sec": 17.92, "events": [{"type": "person_entered", "track_id": 62}]}
+{"frame": 640, "time_sec": 21.35, "events": [{"type": "person_exited", "track_id": 56}]}
+{"frame": 646, "time_sec": 21.55, "events": [{"type": "person_exited", "track_id": 62}]}
