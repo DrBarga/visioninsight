@@ -3,6 +3,8 @@ import os
 import re
 from typing import Dict, Any, Tuple, List, Optional
 
+from app.query.intents import detect_intent
+
 
 def _read_json(path: str) -> Dict[str, Any]:
     with open(path, "r", encoding="utf-8") as f:
@@ -43,115 +45,275 @@ def _safe_get_objects_stats(run_dir: str) -> Optional[Dict[str, Any]]:
     return _safe_read_json(os.path.join(run_dir, "objects_stats.json"))
 
 
-def _normalize_word(w: str) -> str:
-    w = (w or "").lower().strip()
-    # naive plural normalization
-    if w.endswith("s") and len(w) > 3:
-        return w[:-1]
-    return w
+def _safe_get_transcript_path(run_dir: str) -> str:
+    return os.path.join(run_dir, "transcript.jsonl")
+
+
+def _load_transcript_segments(transcript_path: str, limit: int = 20000) -> List[Dict[str, Any]]:
+    """
+    Returns normalized segments: {t_start, t_end, text, confidence?}
+    Skips placeholders where available==False unless it's the only line.
+    """
+    if not os.path.exists(transcript_path):
+        return []
+
+    items: List[Dict[str, Any]] = []
+    placeholders: List[Dict[str, Any]] = []
+    for i, row in enumerate(_iter_jsonl(transcript_path)):
+        if i >= limit:
+            break
+
+        # placeholder case
+        if row.get("available") is False:
+            placeholders.append(row)
+            continue
+
+        txt = (row.get("text") or "").strip()
+        if not txt:
+            continue
+
+        items.append({
+            "t_start": float(row.get("t_start", 0.0) or 0.0),
+            "t_end": float(row.get("t_end", 0.0) or 0.0),
+            "text": txt,
+            "confidence": row.get("confidence"),
+        })
+
+    if items:
+        return items
+
+    if placeholders:
+        return placeholders
+
+    return []
 
 
 def _match_object_class_from_question(question: str, available_classes: List[str]) -> Optional[str]:
-    q = (question or "").lower()
-    # quick contains
+    """
+    Tries to find a class name mentioned in the question.
+    Works even if the user writes plural: "cars" -> "car".
+    """
+    q = question.lower()
+
     for cname in available_classes:
-        if cname.lower() in q:
+        if cname in q:
             return cname
 
     words = re.findall(r"[a-zA-Z_]+", q)
-    norm = set(_normalize_word(w) for w in words)
+    normalized = set()
+    for w in words:
+        w = w.lower()
+        if w.endswith("s") and len(w) > 3:
+            normalized.add(w[:-1])
+        normalized.add(w)
+
     for cname in available_classes:
-        if _normalize_word(cname) in norm:
+        if cname in normalized:
             return cname
+
     return None
 
 
-def _objects_stats_extract(obj_stats: Dict[str, Any]) -> Dict[str, Any]:
+def _extract_transcript_query(question: str) -> Optional[str]:
     """
-    Unifies both old/new formats into a single dict.
-
-    Returns keys:
-      - frame_total_all: int
-      - frame_totals_by_class: Dict[str,int]
-      - unique_total_all: int
-      - unique_by_class: Dict[str,int]
-      - peak_in_frame: dict (max/max_at)
+    Extracts a search query from natural language:
+      - "Where do they mention X?"
+      - "Find where they talk about X"
+      - "Где говорят про X?"
+      - quoted strings preferred
     """
-    if not obj_stats:
-        return {
-            "frame_total_all": 0,
-            "frame_totals_by_class": {},
-            "unique_total_all": 0,
-            "unique_by_class": {},
-            "peak_in_frame": {},
-        }
+    q = (question or "").strip()
 
-    # frame totals (current)
-    frame_total_all = int(obj_stats.get("objects_total", 0) or 0)
+    m = re.search(r"['\"]([^'\"]{2,120})['\"]", q)
+    if m:
+        return m.group(1).strip()
 
-    frame_totals_by_class: Dict[str, int] = {}
-    top = obj_stats.get("top_classes") or []
-    if isinstance(top, list):
-        for item in top:
-            if not isinstance(item, dict):
-                continue
-            cn = item.get("class_name")
-            if cn is None:
-                continue
-            frame_totals_by_class[str(cn).lower()] = int(item.get("total", 0) or 0)
+    low = q.lower()
 
-    # unique (new fix we just added)
-    unique_by_class: Dict[str, int] = {}
-    if isinstance(obj_stats.get("unique_by_class"), dict):
-        for k, v in obj_stats.get("unique_by_class", {}).items():
-            unique_by_class[str(k).lower()] = int(v or 0)
+    for pat in [
+        r"\bmention\b\s+(.*)$",
+        r"\btalk about\b\s+(.*)$",
+        r"\bdiscuss\b\s+(.*)$",
+        r"\bsay\b\s+(.*)$",
+        r"\babout\b\s+(.*)$",
+    ]:
+        mm = re.search(pat, low)
+        if mm:
+            s = mm.group(1).strip()
+            s = re.sub(r"[?.!,]+$", "", s).strip()
+            if len(s) >= 2:
+                return s
 
-    unique_total_all = int(obj_stats.get("unique_total", 0) or sum(unique_by_class.values()))
+    for pat in [
+        r"\bпро\b\s+(.*)$",
+        r"\bупомян[а-я]*\b\s+(.*)$",
+        r"\bобсужда[а-я]*\b\s+(.*)$",
+        r"\bговорят\b\s+про\s+(.*)$",
+    ]:
+        mm = re.search(pat, low)
+        if mm:
+            s = mm.group(1).strip()
+            s = re.sub(r"[?.!,]+$", "", s).strip()
+            if len(s) >= 2:
+                return s
 
-    # peak
-    peak = obj_stats.get("objects_peak_in_frame") or {}
+    tokens = re.findall(r"[A-Za-zА-Яа-я0-9_]+", q)
+    if len(tokens) >= 1:
+        tail = " ".join(tokens[-4:]).strip()
+        if len(tail) >= 2:
+            return tail
 
-    # Backward compatibility: if someone has old/alt format (unique_total/unique_by_class only)
-    if frame_total_all == 0 and not frame_totals_by_class and isinstance(obj_stats.get("top_classes"), dict):
-        # not expected, but keep safe
-        for k, v in obj_stats.get("top_classes", {}).items():
-            frame_totals_by_class[str(k).lower()] = int(v or 0)
-        frame_total_all = int(sum(frame_totals_by_class.values()))
-
-    return {
-        "frame_total_all": frame_total_all,
-        "frame_totals_by_class": frame_totals_by_class,
-        "unique_total_all": unique_total_all,
-        "unique_by_class": unique_by_class,
-        "peak_in_frame": peak,
-    }
+    return None
 
 
-def _question_wants_unique(question: str) -> bool:
-    q = (question or "").lower()
-    # English cues
-    if any(x in q for x in ["unique", "distinct", "different", "how many cars were there", "how many were there"]):
-        return True
-    # Russian cues
-    if any(x in q for x in ["уник", "разных", "сколько было", "всего было", "сколько всего было"]):
-        return True
-    return False
+def _format_time(t: float) -> str:
+    t = max(0.0, float(t))
+    m = int(t // 60)
+    s = int(round(t - m * 60))
+    return f"{m:02d}:{s:02d}"
 
 
-def _question_wants_frame_aggregate(question: str) -> bool:
-    q = (question or "").lower()
-    # English cues
-    if any(x in q for x in ["detections", "detected in total", "aggregate", "total detections", "across frames"]):
-        return True
-    # Russian cues
-    if any(x in q for x in ["детекц", "суммарно по кадрам", "в сумме по кадрам", "всего детекций"]):
-        return True
-    return False
+# ===========================
+# Transcript improvements (safe helpers)
+# ===========================
+
+def _normalize_text(s: str) -> str:
+    s = (s or "").lower()
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
 
 
-# -------------------- MAIN API --------------------
+def _tokenize(s: str) -> List[str]:
+    # English-ish tokenizer; good enough for fuzzy transcript search
+    return re.findall(r"[a-zA-Z0-9]+", _normalize_text(s))
 
-from app.query.intents import detect_intent  # keep import here to avoid circular issues
+
+def _fuzzy_score(query_tokens: List[str], text_tokens: List[str]) -> float:
+    if not query_tokens or not text_tokens:
+        return 0.0
+    qs = set(query_tokens)
+    ts = set(text_tokens)
+    inter = len(qs & ts)
+    return inter / max(1, len(qs))
+
+
+def _search_transcript(segments: List[Dict[str, Any]], query: str, max_hits: int = 8) -> List[Dict[str, Any]]:
+    """
+    1) substring match (strong)
+    2) token-overlap fuzzy match (fallback)
+    """
+    q_norm = _normalize_text(query)
+    q_tokens = _tokenize(query)
+
+    hits: List[Dict[str, Any]] = []
+
+    for seg in segments:
+        txt = seg.get("text") or ""
+        t_norm = _normalize_text(txt)
+
+        if q_norm and q_norm in t_norm:
+            hits.append({
+                "t_start": seg.get("t_start"),
+                "t_end": seg.get("t_end"),
+                "text": txt,
+                "match": "substring",
+                "score": 1.0,
+            })
+        else:
+            # fuzzy: require >=2 tokens to avoid garbage hits for 1-word queries
+            if len(q_tokens) >= 2:
+                score = _fuzzy_score(q_tokens, _tokenize(txt))
+                if score >= 0.5:
+                    hits.append({
+                        "t_start": seg.get("t_start"),
+                        "t_end": seg.get("t_end"),
+                        "text": txt,
+                        "match": "token_overlap",
+                        "score": round(score, 3),
+                    })
+
+        if len(hits) >= max_hits * 5:
+            break
+
+    hits.sort(key=lambda x: x.get("score", 0.0), reverse=True)
+    return hits[:max_hits]
+
+
+def _build_transcript_chunks(segments: List[Dict[str, Any]], chunk_sec: float = 20.0) -> List[Dict[str, Any]]:
+    """
+    Merge segments into time chunks for better summarization without LLM.
+    """
+    if not segments:
+        return []
+
+    chunks: List[Dict[str, Any]] = []
+    cur_text: List[str] = []
+    cur_start = float(segments[0].get("t_start", 0.0) or 0.0)
+    cur_end = float(segments[0].get("t_end", cur_start) or cur_start)
+
+    for seg in segments:
+        s = float(seg.get("t_start", 0.0) or 0.0)
+        e = float(seg.get("t_end", s) or s)
+
+        if (e - cur_start) > chunk_sec and cur_text:
+            chunks.append({
+                "t_start": cur_start,
+                "t_end": cur_end,
+                "text": " ".join(cur_text).strip(),
+            })
+            cur_text = []
+            cur_start = s
+            cur_end = e
+
+        cur_end = max(cur_end, e)
+        cur_text.append((seg.get("text") or "").strip())
+
+    if cur_text:
+        chunks.append({
+            "t_start": cur_start,
+            "t_end": cur_end,
+            "text": " ".join(cur_text).strip(),
+        })
+
+    return chunks
+
+
+def _summarize_rule_based(chunks: List[Dict[str, Any]], max_points: int = 8) -> List[Dict[str, Any]]:
+    """
+    Extractive summary:
+      - picks chunks with the most unique tokens (proxy information density)
+    """
+    scored = []
+    for c in chunks:
+        toks = set(_tokenize(c.get("text", "")))
+        scored.append((len(toks), c))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+
+    selected = [c for _, c in scored[:max_points]]
+    selected.sort(key=lambda x: x["t_start"])
+    return selected
+
+
+def _is_lyrics_like(segments: List[Dict[str, Any]]) -> bool:
+    """
+    Heuristic: repeated lines + many short lines OR profanity spikes.
+    Helps warn that 'summary' might be more like lyrics than story.
+    """
+    if not segments:
+        return False
+
+    texts = [seg.get("text", "") for seg in segments[:140]]
+    norm_lines = [_normalize_text(t) for t in texts if (t or "").strip()]
+    if not norm_lines:
+        return False
+
+    unique = set(norm_lines)
+    repetition_ratio = 1.0 - (len(unique) / max(1, len(norm_lines)))
+    short_ratio = sum(1 for t in norm_lines if len(t.split()) <= 6) / max(1, len(norm_lines))
+    prof_ratio = sum(1 for t in norm_lines if any(w in t for w in ["fuck", "shit", "goddamn"])) / max(1, len(norm_lines))
+
+    return (short_ratio > 0.55 and repetition_ratio > 0.15) or (prof_ratio > 0.08)
 
 
 def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, Any], float]:
@@ -170,6 +332,99 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
     quality = _safe_get_quality(run_dir)
     obj_stats = _safe_get_objects_stats(run_dir)
 
+    # ---------- TRANSCRIPT ----------
+    if intent in ("transcript_search", "summarize_video"):
+        transcript_path = _safe_get_transcript_path(run_dir)
+        segments = _load_transcript_segments(transcript_path)
+
+        if not segments:
+            return (
+                intent,
+                "Transcript not found for this analysis. Re-run analysis with transcript enabled to generate transcript.jsonl.",
+                {"source": "transcript.jsonl", "found": False},
+                0.45,
+            )
+
+        # placeholder only
+        if len(segments) == 1 and segments[0].get("available") is False:
+            return (
+                intent,
+                "Transcript is not available on this machine (audio extraction/ASR missing). "
+                "Install ffmpeg and an ASR backend (recommended: faster-whisper) and re-run analysis.",
+                {"source": "transcript.jsonl", "available": False, "reason": segments[0].get("reason")},
+                0.55,
+            )
+
+        if intent == "transcript_search":
+            query = _extract_transcript_query(question)
+            if not query:
+                return (
+                    intent,
+                    "I couldn't extract what to search for. Try: \"Where do they mention 'X'?\"",
+                    {"source": "transcript.jsonl"},
+                    0.5,
+                )
+
+            hits = _search_transcript(segments, query, max_hits=8)
+
+            if not hits:
+                return (
+                    intent,
+                    f"No transcript matches found for: '{query}'.",
+                    {"query": query, "matches": [], "source": "transcript.jsonl"},
+                    0.85,
+                )
+
+            pretty = "; ".join([f"{_format_time(h['t_start'])}–{_format_time(h['t_end'])}" for h in hits[:5]])
+            answer = f"Found {len(hits)} transcript matches for '{query}'. Top timestamps: {pretty}."
+            return (
+                intent,
+                answer,
+                {"query": query, "matches": hits, "source": "transcript.jsonl"},
+                0.92,
+            )
+
+        if intent == "summarize_video":
+            chunks = _build_transcript_chunks(segments, chunk_sec=20.0)
+            selected = _summarize_rule_based(chunks, max_points=8)
+            lyrics_like = _is_lyrics_like(segments)
+
+            hl_short = []
+            if highlights and isinstance(highlights.get("highlights"), list):
+                for h in highlights["highlights"][:6]:
+                    hl_short.append({
+                        "type": h.get("type"),
+                        "start_sec": h.get("start_sec"),
+                        "end_sec": h.get("end_sec"),
+                    })
+
+            lines = []
+            if lyrics_like:
+                lines.append("Note: transcript looks music/lyrics-like; summary may be less meaningful as 'story'.")
+
+            if hl_short:
+                lines.append("Key visual analytics highlights:")
+                for h in hl_short:
+                    lines.append(f"- {h['type']}: {h['start_sec']}s–{h['end_sec']}s")
+
+            lines.append("Transcript summary (extractive):")
+            for c in selected:
+                lines.append(f"- {_format_time(c['t_start'])}–{_format_time(c['t_end'])}: {c['text'][:180]}")
+
+            answer = "\n".join(lines)
+
+            evidence = {
+                "lyrics_like": lyrics_like,
+                "highlights_sample": hl_short,
+                "transcript_chunks_total": len(chunks),
+                "transcript_selected_chunks": selected,
+                "source": "transcript.jsonl",
+            }
+            if highlights:
+                evidence["highlights_source"] = "highlights.json"
+
+            return (intent, answer, evidence, 0.88)
+
     # ---------- PEOPLE ----------
     if intent == "count_people":
         unique_people = summary.get("tracks_summary", {}).get("unique_people", 0)
@@ -184,6 +439,19 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
         if "avg_on_screen" in evidence or "peak_on_screen" in evidence:
             answer += f" On-screen crowd: avg={evidence.get('avg_on_screen', 0)}, peak={evidence.get('peak_on_screen', 0)}."
         return (intent, answer, evidence, 0.9)
+
+    if intent == "timeline_info":
+        timeline_count = summary.get("timeline_count", 0)
+        evidence: Dict[str, Any] = {"timeline_count": timeline_count}
+
+        if stats:
+            evidence["duration_sec_est"] = stats.get("duration_sec_est", 0.0)
+            evidence["fps"] = stats.get("fps", 0.0)
+
+        answer = f"Timeline entries saved: {timeline_count}."
+        if "duration_sec_est" in evidence:
+            answer += f" Estimated duration: {evidence['duration_sec_est']}s."
+        return (intent, answer, evidence, 0.85)
 
     if intent == "peak_people":
         if stats and "people_count" in stats:
@@ -218,7 +486,6 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
         evidence = {"max_people": max_people, "time_sec": t, "frame": fr, "scanned_rows": scanned, "source": "timeline.jsonl"}
         return (intent, answer, evidence, 0.8)
 
-    # ---------- CROWD WINDOWS / DYNAMICS ----------
     if intent == "crowd_windows":
         if not stats:
             return (intent, "Stats not found for this analysis. Run analysis again to generate stats.json.", {}, 0.4)
@@ -277,7 +544,6 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
             answer = f"Most dynamic moment (enter/exit burst): {m['count']} events during {m['start_sec']}s–{m['end_sec']}s."
             return (intent, answer, {"most_dynamic_window": m, "source": "stats.json"}, 0.9)
 
-    # ---------- EVENTS ----------
     if intent == "events":
         if os.path.exists(events_path):
             entered = 0
@@ -329,82 +595,38 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
         return (intent, answer, {"quality_summary": qs, "source": "quality.json"}, 0.9)
 
     # ---------- OBJECTS ----------
-    if intent in ("count_objects", "list_objects", "peak_objects"):
+    if intent in ("count_objects", "list_objects"):
         if not obj_stats:
             return (intent, "Objects stats not found. Run analysis again to generate objects_stats.json.", {}, 0.4)
 
-        x = _objects_stats_extract(obj_stats)
-        frame_total_all = x["frame_total_all"]
-        frame_totals_by_class = x["frame_totals_by_class"]
-        unique_total_all = x["unique_total_all"]
-        unique_by_class = x["unique_by_class"]
-        peak = x["peak_in_frame"] or {}
+        unique_total = obj_stats.get("unique_total", 0)
+        unique_by_class = obj_stats.get("unique_by_class") or {}
 
-        # combine known class universe
-        classes = sorted(set(list(frame_totals_by_class.keys()) + list(unique_by_class.keys())))
-        matched = _match_object_class_from_question(question, classes)
-
-        wants_unique = _question_wants_unique(question)
-        wants_aggregate = _question_wants_frame_aggregate(question)
-        if not wants_unique and not wants_aggregate:
-            # default: if we have unique_by_class, prefer unique for "how many X were there"
-            wants_unique = True if unique_by_class else False
-            wants_aggregate = not wants_unique
-
-        if intent == "list_objects":
-            # show both (if available), but keep compact
-            if not classes:
-                return (intent, "No objects were detected (non-person classes).", {"classes": []}, 0.85)
-
-            # sort by frame totals (more stable view), fallback to unique
-            if frame_totals_by_class:
-                items = sorted(frame_totals_by_class.items(), key=lambda kv: kv[1], reverse=True)
-                pretty = ", ".join([f"{k}={v}" for k, v in items[:10]])
-                answer = f"Detected object classes (frame-aggregate top): {pretty}."
-                ev = {"frame_totals_by_class": frame_totals_by_class, "source": "objects_stats.json"}
-                if unique_by_class:
-                    ev["unique_by_class"] = unique_by_class
-                return (intent, answer, ev, 0.9)
-
-            items = sorted(unique_by_class.items(), key=lambda kv: kv[1], reverse=True)
-            pretty = ", ".join([f"{k}={v}" for k, v in items[:10]])
-            answer = f"Detected object classes (unique top): {pretty}."
-            return (intent, answer, {"unique_by_class": unique_by_class, "source": "objects_stats.json"}, 0.9)
-
-        if intent == "peak_objects":
-            max_on_screen = peak.get("max", 0)
-            max_at = peak.get("max_at", {}) or {}
-            answer = f"Peak objects on screen: {max_on_screen} at {max_at.get('time_sec', 0.0)}s (frame {max_at.get('frame', 0)})."
-            return (intent, answer, {"objects_peak_in_frame": peak, "source": "objects_stats.json"}, 0.9)
+        available_classes = list(unique_by_class.keys())
+        matched = _match_object_class_from_question(question, available_classes)
 
         if intent == "count_objects":
-            metric = "unique" if wants_unique else "frame_aggregate"
-
             if matched:
-                if wants_unique:
-                    n = int(unique_by_class.get(matched, 0))
-                    answer = f"Unique '{matched}' objects: {n}."
-                    evidence = {"class_name": matched, "unique": n, "metric": metric, "source": "objects_stats.json"}
-                    return (intent, answer, evidence, 0.9)
-                else:
-                    n = int(frame_totals_by_class.get(matched, 0))
-                    answer = f"Total '{matched}' detections (aggregate over frames): {n}."
-                    evidence = {"class_name": matched, "total": n, "metric": metric, "source": "objects_stats.json"}
-                    return (intent, answer, evidence, 0.9)
+                n = int(unique_by_class.get(matched, 0))
+                answer = f"Total unique '{matched}' detected: {n}."
+                evidence = {"class_name": matched, "unique": n, "source": "objects_stats.json"}
+                return (intent, answer, evidence, 0.9)
 
-            # no class
-            if wants_unique:
-                answer = f"Total unique objects: {unique_total_all}."
-                ev = {"unique_total": unique_total_all, "metric": metric, "source": "objects_stats.json"}
-                return (intent, answer, ev, 0.9)
+            on_screen = obj_stats.get("on_screen") or {}
+            answer = f"Total unique objects detected: {unique_total}."
+            if on_screen:
+                answer += f" On-screen objects: avg={on_screen.get('avg', 0)}, peak={on_screen.get('max', 0)}."
+            evidence = {"unique_total": unique_total, "unique_by_class_top": dict(list(unique_by_class.items())[:10]), "source": "objects_stats.json"}
+            return (intent, answer, evidence, 0.9)
 
-            answer = f"Total objects detected (aggregate over frames): {frame_total_all}."
-            if isinstance(peak, dict) and peak:
-                max_on_screen = peak.get("max", 0)
-                max_at = peak.get("max_at", {}) or {}
-                answer += f" Peak on screen={max_on_screen} at {max_at.get('time_sec', 0.0)}s (frame {max_at.get('frame', 0)})."
-            ev = {"objects_total": frame_total_all, "metric": metric, "source": "objects_stats.json"}
-            return (intent, answer, ev, 0.9)
+        if intent == "list_objects":
+            if not unique_by_class:
+                return (intent, "No objects were detected (non-person classes).", {"unique_by_class": {}}, 0.85)
+
+            top = list(unique_by_class.items())[:10]
+            pretty = ", ".join([f"{k}={v}" for k, v in top])
+            answer = f"Detected object classes (top): {pretty}."
+            return (intent, answer, {"unique_by_class": unique_by_class, "source": "objects_stats.json"}, 0.9)
 
     # ---------- SUMMARY ----------
     if intent == "summary":
@@ -438,11 +660,10 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
             parts.append(f"high_density_windows={len(windows)} (threshold={threshold})")
 
         if obj_stats:
-            x = _objects_stats_extract(obj_stats)
-            evidence["objects_total_frame_aggregate"] = x["frame_total_all"]
-            evidence["objects_total_unique"] = x["unique_total_all"]
-            parts.append(f"objects_unique={x['unique_total_all']}")
-            parts.append(f"objects_frame_aggregate={x['frame_total_all']}")
+            evidence["objects_unique_total"] = obj_stats.get("unique_total", 0)
+            top_classes = obj_stats.get("unique_by_class") or {}
+            evidence["objects_top_classes"] = dict(list(top_classes.items())[:10])
+            parts.append(f"objects_unique_total={evidence['objects_unique_total']}")
 
         answer = "Summary: " + ", ".join(parts) + "."
         conf = 0.9 if stats else 0.75
@@ -451,17 +672,18 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
     # ---------- UNKNOWN ----------
     return (
         "unknown",
-        "I can answer about people counts, peak crowd, crowded windows, crowd dynamics, highlights, tracking quality, "
-        "and object analytics (unique vs frame-aggregate). Try: "
-        "'How many people?', 'Peak people', 'When was it crowded?', "
-        "'What objects were detected?', 'How many cars were there? (unique)', "
-        "'How many car detections? (aggregate)', 'Peak objects', 'Give me a summary'.",
-        {
-            "supported_intents": [
-                "count_people", "peak_people", "crowd_windows", "crowd_growth", "crowd_drop", "most_dynamic",
-                "highlights", "quality", "events", "summary",
-                "list_objects", "count_objects", "peak_objects"
-            ]
-        },
-        0.4,
+        "I can answer questions about: people, crowd dynamics, highlights, tracking quality, objects, and transcript (search + summary). "
+        "Try: "
+        "'Summarize the video', "
+        "'Where do they mention \"X\"?', "
+        "'How many people?', 'When was it crowded?', "
+        "'How many objects?', 'What objects were detected?', "
+        "'Give me highlights', 'Tracking quality', 'Give me a summary'.",
+        {"supported_intents": [
+            "summarize_video", "transcript_search",
+            "count_people", "peak_people", "crowd_windows", "crowd_growth", "crowd_drop", "most_dynamic",
+            "highlights", "quality", "timeline_info", "events", "summary",
+            "count_objects", "list_objects"
+        ]},
+        0.4
     )

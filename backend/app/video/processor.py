@@ -14,6 +14,7 @@ from app.analytics.stats_builder import StatsBuilder
 from app.analytics.highlights_builder import HighlightsBuilder
 from app.analytics.quality_builder import TrackingQualityBuilder
 from app.analytics.objects_stats_builder import ObjectsStatsBuilder
+from app.analytics.transcript_builder import TranscriptBuilder
 
 
 def _jsonl_write(fp, obj: Dict[str, Any]) -> None:
@@ -43,8 +44,7 @@ class VideoProcessor:
             match_by_class=True,
         )
 
-        # Objects tracking:
-        # IMPORTANT: match_by_class=False to prevent class-flip splitting (train -> bus -> motorcycle)
+        # Objects tracking: match_by_class=False to prevent class-flip splitting
         self.objects_tracker = IOUTracker(
             iou_threshold=0.25,
             max_missed=15,
@@ -52,6 +52,8 @@ class VideoProcessor:
             smooth_alpha=0.8,
             match_by_class=False,
         )
+
+        self.transcript_builder = TranscriptBuilder()
 
     def _ensure_dir(self, p: Path) -> None:
         p.mkdir(parents=True, exist_ok=True)
@@ -61,6 +63,11 @@ class VideoProcessor:
         input_path: str,
         analysis_id: Optional[str] = None,
         detection_profile: str = "balanced",
+        # transcript options (safe defaults)
+        enable_transcript: bool = True,
+        transcript_backend: str = "auto",   # auto | faster-whisper | none
+        transcript_model: str = "base",
+        transcript_language: Optional[str] = None,
     ) -> dict:
         analysis_id = analysis_id or str(uuid.uuid4())
         run_dir = self.runs_dir / analysis_id
@@ -100,6 +107,10 @@ class VideoProcessor:
         objects_stats_path = run_dir / "objects_stats.json"
         summary_path = run_dir / "summary.json"
 
+        # new artifacts
+        transcript_path = run_dir / "transcript.jsonl"
+        audio_wav_path = run_dir / "audio.wav"
+
         # Apply detection profile
         self.detector.set_profile(detection_profile)
 
@@ -119,17 +130,20 @@ class VideoProcessor:
                 "people": {"type": "IOUTracker", "iou_threshold": 0.3, "max_missed": 30, "min_hits": 3, "match_by_class": True},
                 "objects": {"type": "IOUTracker", "iou_threshold": 0.25, "max_missed": 15, "min_hits": 2, "match_by_class": False},
             },
-            "version": "0.3.10+tracking-fixes",
+            "transcript": {
+                "enabled": enable_transcript,
+                "backend": transcript_backend,
+                "model": transcript_model,
+                "language": transcript_language,
+            },
+            "version": "0.4.1+transcript-layer",
         }
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
 
         frame_id = 0
         timeline_count = 0
 
-        # IMPORTANT FIX: count unique people only for confirmed tracks
         seen_people_confirmed_tracks = set()
-
-        # IMPORTANT FIX: last_seen and enter/exit should track only confirmed tracks
         last_seen_confirmed: Dict[int, int] = {}
         exit_threshold = int(fps * 2)  # 2 seconds
 
@@ -148,11 +162,9 @@ class VideoProcessor:
                 det_people_raw = [d for d in detections if _is_person(d)]
                 det_objects_raw = [d for d in detections if not _is_person(d)]
 
-                # Track people + objects
                 det_people_tracks = self.people_tracker.update(frame_id, det_people_raw)
                 det_objects_tracks = self.objects_tracker.update(frame_id, det_objects_raw)
 
-                # Events for people (confirmed only)
                 events: List[Dict[str, Any]] = []
                 for t in det_people_tracks:
                     if not _is_confirmed(t):
@@ -162,15 +174,11 @@ class VideoProcessor:
                         continue
                     tid = int(tid)
 
-                    # update last seen for confirmed only
                     last_seen_confirmed[tid] = frame_id
-
-                    # entered when first time confirmed track seen
                     if tid not in seen_people_confirmed_tracks:
                         seen_people_confirmed_tracks.add(tid)
                         events.append({"type": "person_entered", "track_id": tid})
 
-                # exits (confirmed only)
                 for tid, last_fr in list(last_seen_confirmed.items()):
                     if frame_id - last_fr > exit_threshold:
                         events.append({"type": "person_exited", "track_id": int(tid)})
@@ -178,20 +186,13 @@ class VideoProcessor:
 
                 time_sec = round(frame_id / fps, 2)
 
-                # Write people.jsonl: you can keep all tracks (tentative+confirmed) OR only confirmed.
-                # To keep current behavior stable for quality/stats, we keep ALL tracks.
                 if det_people_tracks:
                     _jsonl_write(f_people, {"frame": frame_id, "time_sec": time_sec, "people": det_people_tracks})
-
-                # Write objects.jsonl: we keep ALL object tracks (tentative+confirmed).
                 if det_objects_tracks:
                     _jsonl_write(f_obj, {"frame": frame_id, "time_sec": time_sec, "objects": det_objects_tracks})
-
                 if events:
                     _jsonl_write(f_ev, {"frame": frame_id, "time_sec": time_sec, "events": events})
 
-                # Golden source timeline (people + events)
-                # Keep people timeline consistent: store ALL people tracks + events.
                 if det_people_tracks or events:
                     _jsonl_write(
                         f_tl,
@@ -205,7 +206,7 @@ class VideoProcessor:
         cap.release()
         out.release()
 
-        # -------- Builders (your real APIs) --------
+        # -------- Builders (existing) --------
         stats_result = StatsBuilder().build_from_timeline_jsonl(
             analysis_id=analysis_id,
             timeline_path=timeline_path,
@@ -225,14 +226,26 @@ class VideoProcessor:
         )
         quality_path.write_text(json.dumps(quality_result.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
 
-        # objects_stats will now do majority vote class per track_id
         obj_stats = ObjectsStatsBuilder().build_from_objects_jsonl(
             analysis_id=analysis_id,
             objects_jsonl_path=str(objects_path),
         )
         objects_stats_path.write_text(json.dumps(obj_stats, ensure_ascii=False, indent=2), encoding="utf-8")
 
-        # Summary uses confirmed unique people
+        # -------- Transcript (new, safe) --------
+        transcript_info = None
+        if enable_transcript:
+            tr = self.transcript_builder.build_from_video(
+                analysis_id=analysis_id,
+                input_video_path=str(input_path),
+                transcript_jsonl_path=str(transcript_path),
+                extracted_wav_path=str(audio_wav_path),
+                backend=transcript_backend,
+                model_size=transcript_model,
+                language=transcript_language,
+            )
+            transcript_info = tr.to_dict()
+
         summary = {
             "analysis_id": analysis_id,
             "tracks_summary": {
@@ -240,6 +253,7 @@ class VideoProcessor:
                 "track_ids": sorted(list(seen_people_confirmed_tracks)),
             },
             "timeline_count": timeline_count,
+            "transcript": transcript_info,
             "artifacts": {
                 "run_dir": str(run_dir),
                 "meta": str(meta_path),
@@ -253,6 +267,8 @@ class VideoProcessor:
                 "objects_jsonl": str(objects_path),
                 "objects_stats": str(objects_stats_path),
                 "output_video": str(output_path),
+                "transcript_jsonl": str(transcript_path) if enable_transcript else None,
+                "audio_wav": str(audio_wav_path) if enable_transcript else None,
             },
         }
         summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")

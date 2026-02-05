@@ -1,0 +1,36 @@
+{
+  "analysis_id": "4058110c-0cc6-4460-9ffb-8c6ac5ab213c",
+  "tracks_summary": {
+    "unique_people": 4,
+    "track_ids": [
+      1,
+      3,
+      4,
+      7
+    ]
+  },
+  "timeline_count": 1746,
+  "transcript": {
+    "analysis_id": "4058110c-0cc6-4460-9ffb-8c6ac5ab213c",
+    "available": true,
+    "backend": "faster-whisper",
+    "segments_written": 34,
+    "notes": "ok; model=base; language=auto"
+  },
+  "artifacts": {
+    "run_dir": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c",
+    "meta": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\meta.json",
+    "summary": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\summary.json",
+    "stats": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\stats.json",
+    "highlights": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\highlights.json",
+    "quality": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\quality.json",
+    "timeline_jsonl": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\timeline.jsonl",
+    "events_jsonl": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\events.jsonl",
+    "people_jsonl": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\people.jsonl",
+    "objects_jsonl": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\objects.jsonl",
+    "objects_stats": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\objects_stats.json",
+    "output_video": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\output.mp4",
+    "transcript_jsonl": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\transcript.jsonl",
+    "audio_wav": "runs\\4058110c-0cc6-4460-9ffb-8c6ac5ab213c\\audio.wav"
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "analysis_id": "4058110c-0cc6-4460-9ffb-8c6ac5ab213c",
+  "fps": 30.0,
+  "tracks": {
+    "1": {
+      "first_frame": 0,
+      "last_frame": 1745,
+      "frames_seen": 1746,
+      "span_frames": 1746,
+      "duration_sec": 58.2,
+      "continuity": 1.0
+    },
+    "2": {
+      "first_frame": 687,
+      "last_frame": 720,
+      "frames_seen": 34,
+      "span_frames": 34,
+      "duration_sec": 1.13,
+      "continuity": 1.0
+    },
+    "3": {
+      "first_frame": 963,
+      "last_frame": 996,
+      "frames_seen": 34,
+      "span_frames": 34,
+      "duration_sec": 1.13,
+      "continuity": 1.0
+    },
+    "4": {
+      "first_frame": 1051,
+      "last_frame": 1745,
+      "frames_seen": 695,
+      "span_frames": 695,
+      "duration_sec": 23.17,
+      "continuity": 1.0
+    },
+    "5": {
+      "first_frame": 1085,
+      "last_frame": 1115,
+      "frames_seen": 31,
+      "span_frames": 31,
+      "duration_sec": 1.03,
+      "continuity": 1.0
+    },
+    "6": {
+      "first_frame": 1110,
+      "last_frame": 1140,
+      "frames_seen": 31,
+      "span_frames": 31,
+      "duration_sec": 1.03,
+      "continuity": 1.0
+    },
+    "7": {
+      "first_frame": 1485,
+      "last_frame": 1525,
+      "frames_seen": 41,
+      "span_frames": 41,
+      "duration_sec": 1.37,
+      "continuity": 1.0
+    }
+  },
+  "quality_summary": {
+    "tracks_total": 7,
+    "avg_track_duration_sec": 12.44,
+    "avg_continuity": 1.0,
+    "short_tracks_count": 0,
+    "short_tracks_pct": 0.0,
+    "short_track_threshold_sec": 0.7
+  }
+}

@@ -1,8 +1,0 @@
-{"frame": 6, "time_sec": 0.2, "events": [{"type": "person_entered", "track_id": 1}]}
-{"frame": 116, "time_sec": 3.87, "events": [{"type": "person_entered", "track_id": 2}]}
-{"frame": 118, "time_sec": 3.94, "events": [{"type": "person_entered", "track_id": 3}]}
-{"frame": 213, "time_sec": 7.11, "events": [{"type": "person_exited", "track_id": 2}]}
-{"frame": 291, "time_sec": 9.71, "events": [{"type": "person_exited", "track_id": 3}]}
-{"frame": 543, "time_sec": 18.12, "events": [{"type": "person_entered", "track_id": 7}]}
-{"frame": 640, "time_sec": 21.35, "events": [{"type": "person_exited", "track_id": 1}]}
-{"frame": 646, "time_sec": 21.55, "events": [{"type": "person_exited", "track_id": 7}]}

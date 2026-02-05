@@ -1,0 +1,6 @@
+{"frame": 2, "time_sec": 0.07, "events": [{"type": "person_entered", "track_id": 1}]}
+{"frame": 965, "time_sec": 32.17, "events": [{"type": "person_entered", "track_id": 3}]}
+{"frame": 1056, "time_sec": 35.2, "events": [{"type": "person_entered", "track_id": 4}]}
+{"frame": 1057, "time_sec": 35.23, "events": [{"type": "person_exited", "track_id": 3}]}
+{"frame": 1487, "time_sec": 49.57, "events": [{"type": "person_entered", "track_id": 7}]}
+{"frame": 1586, "time_sec": 52.87, "events": [{"type": "person_exited", "track_id": 7}]}

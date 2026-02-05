@@ -1,0 +1,53 @@
+{
+  "analysis_id": "4058110c-0cc6-4460-9ffb-8c6ac5ab213c",
+  "fps": 30.0,
+  "duration_sec_est": 58.17,
+  "timeline_frames": 1746,
+  "people_count": {
+    "max": 4,
+    "avg": 1.5,
+    "p95": 3,
+    "max_at": {
+      "time_sec": 37.0,
+      "frame": 1110
+    }
+  },
+  "crowd_windows": [
+    {
+      "start_sec": 36.63,
+      "end_sec": 38.0,
+      "type": "stable_crowd"
+    },
+    {
+      "start_sec": 49.97,
+      "end_sec": 50.83,
+      "type": "stable_crowd"
+    }
+  ],
+  "crowd_threshold": 3,
+  "crowd_smoothing_sec": 0.5,
+  "crowd_dynamics": {
+    "fastest_growth": {
+      "delta": 0.04,
+      "start_sec": 37.2,
+      "end_sec": 37.23,
+      "from": 2.89,
+      "to": 2.93,
+      "window_sec": 1.0
+    },
+    "fastest_drop": {
+      "delta": -0.04,
+      "start_sec": 38.53,
+      "end_sec": 38.57,
+      "from": 2.71,
+      "to": 2.67,
+      "window_sec": 1.0
+    },
+    "most_dynamic_window": {
+      "count": 2,
+      "start_sec": 34.27,
+      "end_sec": 35.23,
+      "window_sec": 1.0
+    }
+  }
+}

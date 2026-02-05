@@ -1,0 +1,70 @@
+{
+  "analysis_id": "4058110c-0cc6-4460-9ffb-8c6ac5ab213c",
+  "highlights": [
+    {
+      "type": "fastest_growth",
+      "start_sec": 37.2,
+      "end_sec": 37.23,
+      "reason": "Fastest crowd increase",
+      "evidence": {
+        "delta": 0.04,
+        "from": 2.89,
+        "to": 2.93,
+        "window_sec": 1.0
+      }
+    },
+    {
+      "type": "peak_crowd",
+      "start_sec": 36.8,
+      "end_sec": 37.2,
+      "reason": "Maximum on-screen crowd",
+      "evidence": {
+        "people_peak": 4,
+        "time_sec": 37.0,
+        "fps": 30.0
+      }
+    },
+    {
+      "type": "crowd_window",
+      "start_sec": 36.63,
+      "end_sec": 38.0,
+      "reason": "High crowd density interval",
+      "evidence": {
+        "window_type": "stable_crowd",
+        "threshold": 3
+      }
+    },
+    {
+      "type": "crowd_window",
+      "start_sec": 49.97,
+      "end_sec": 50.83,
+      "reason": "High crowd density interval",
+      "evidence": {
+        "window_type": "stable_crowd",
+        "threshold": 3
+      }
+    },
+    {
+      "type": "most_dynamic",
+      "start_sec": 34.27,
+      "end_sec": 35.23,
+      "reason": "Highest enter/exit activity (event burst)",
+      "evidence": {
+        "events_count": 2,
+        "window_sec": 1.0
+      }
+    },
+    {
+      "type": "fastest_drop",
+      "start_sec": 38.53,
+      "end_sec": 38.57,
+      "reason": "Fastest crowd decrease",
+      "evidence": {
+        "delta": -0.04,
+        "from": 2.71,
+        "to": 2.67,
+        "window_sec": 1.0
+      }
+    }
+  ]
+}

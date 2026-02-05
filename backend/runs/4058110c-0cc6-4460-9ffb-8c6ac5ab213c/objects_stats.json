@@ -1,0 +1,129 @@
+{
+  "analysis_id": "4058110c-0cc6-4460-9ffb-8c6ac5ab213c",
+  "objects_total": 1931,
+  "objects_frames": 1338,
+  "avg_objects_per_frame": 1.4432,
+  "objects_peak_in_frame": {
+    "max": 3,
+    "max_at": {
+      "frame": 348,
+      "time_sec": 11.6
+    }
+  },
+  "top_classes": [
+    {
+      "class_name": "tie",
+      "total": 1469,
+      "max_in_frame": 3
+    },
+    {
+      "class_name": "wine glass",
+      "total": 336,
+      "max_in_frame": 2
+    },
+    {
+      "class_name": "cup",
+      "total": 126,
+      "max_in_frame": 2
+    }
+  ],
+  "unique_total": 38,
+  "unique_by_class": {
+    "tie": 28,
+    "wine glass": 6,
+    "cup": 4
+  },
+  "top_classes_unique": [
+    {
+      "class_name": "tie",
+      "unique": 28
+    },
+    {
+      "class_name": "wine glass",
+      "unique": 6
+    },
+    {
+      "class_name": "cup",
+      "unique": 4
+    }
+  ],
+  "has_object_track_ids": true,
+  "track_class_vote_debug_top": [
+    {
+      "track_id": 1,
+      "final_class": "tie",
+      "votes": {
+        "tie": 144
+      }
+    },
+    {
+      "track_id": 2,
+      "final_class": "tie",
+      "votes": {
+        "tie": 222,
+        "wine glass": 72,
+        "cup": 3
+      }
+    },
+    {
+      "track_id": 3,
+      "final_class": "wine glass",
+      "votes": {
+        "wine glass": 16
+      }
+    },
+    {
+      "track_id": 4,
+      "final_class": "cup",
+      "votes": {
+        "cup": 16
+      }
+    },
+    {
+      "track_id": 5,
+      "final_class": "wine glass",
+      "votes": {
+        "wine glass": 32
+      }
+    },
+    {
+      "track_id": 6,
+      "final_class": "tie",
+      "votes": {
+        "tie": 16
+      }
+    },
+    {
+      "track_id": 7,
+      "final_class": "wine glass",
+      "votes": {
+        "wine glass": 25,
+        "cup": 14
+      }
+    },
+    {
+      "track_id": 8,
+      "final_class": "cup",
+      "votes": {
+        "cup": 21,
+        "wine glass": 2
+      }
+    },
+    {
+      "track_id": 9,
+      "final_class": "tie",
+      "votes": {
+        "tie": 266,
+        "wine glass": 15
+      }
+    },
+    {
+      "track_id": 10,
+      "final_class": "wine glass",
+      "votes": {
+        "wine glass": 32
+      }
+    }
+  ],
+  "note": "top_classes totals are frame-aggregate; unique_* uses track_id with majority-vote class per track."
+}

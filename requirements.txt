@@ -6,3 +6,4 @@ ultralytics
 numpy
 pydantic
 uvicorn
+faster-whisper
