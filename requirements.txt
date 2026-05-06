@@ -7,3 +7,5 @@ numpy
 pydantic
 uvicorn
 faster-whisper
+open_clip_torch
+Pillow

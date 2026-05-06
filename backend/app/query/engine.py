@@ -315,6 +315,9 @@ def _is_lyrics_like(segments: List[Dict[str, Any]]) -> bool:
 
     return (short_ratio > 0.55 and repetition_ratio > 0.15) or (prof_ratio > 0.08)
 
+def _safe_get_objects_refined_stats(run_dir: str) -> Optional[Dict[str, Any]]:
+    return _safe_read_json(os.path.join(run_dir, "objects_refined_stats.json"))
+
 
 def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, Any], float]:
     intent = detect_intent(question)
@@ -331,6 +334,8 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
     highlights = _safe_get_highlights(run_dir)
     quality = _safe_get_quality(run_dir)
     obj_stats = _safe_get_objects_stats(run_dir)
+    obj_ref_stats = _safe_get_objects_refined_stats(run_dir)
+
 
     # ---------- TRANSCRIPT ----------
     if intent in ("transcript_search", "summarize_video"):

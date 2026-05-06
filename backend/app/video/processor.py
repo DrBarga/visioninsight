@@ -15,6 +15,9 @@ from app.analytics.highlights_builder import HighlightsBuilder
 from app.analytics.quality_builder import TrackingQualityBuilder
 from app.analytics.objects_stats_builder import ObjectsStatsBuilder
 from app.analytics.transcript_builder import TranscriptBuilder
+from app.analytics.object_refinement_builder import ObjectRefinementBuilder
+from app.analytics.objects_refined_stats_builder import ObjectsRefinedStatsBuilder
+
 
 
 def _jsonl_write(fp, obj: Dict[str, Any]) -> None:
@@ -231,6 +234,26 @@ class VideoProcessor:
             objects_jsonl_path=str(objects_path),
         )
         objects_stats_path.write_text(json.dumps(obj_stats, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        # --- Refinement (CLIP) ---
+        ref_builder = ObjectRefinementBuilder()
+        ref_summary = ref_builder.build(
+            input_video_path=run_dir / "input.mp4",
+            objects_jsonl_path=run_dir / "objects.jsonl",
+            output_refinements_json_path=run_dir / "object_refinements.json",
+            samples_per_track=3,
+            topk=5,
+        )
+
+        # --- Refined stats ---
+        ref_stats_builder = ObjectsRefinedStatsBuilder()
+        ref_stats = ref_stats_builder.build(
+            object_refinements_json_path=run_dir / "object_refinements.json",
+            output_stats_path=run_dir / "objects_refined_stats.json",
+            top_n=20,
+            min_confidence=0.0,
+        )
+
 
         # -------- Transcript (new, safe) --------
         transcript_info = None

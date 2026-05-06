@@ -115,3 +115,10 @@ Every answer backed by data
 Built for extension (LLMs, databases, dashboards)
 
 LLMs will be added after structured understanding is complete
+
+---
+
+## License
+
+This project is proprietary software. All rights reserved.
+See [LICENSE](LICENSE) for details.
