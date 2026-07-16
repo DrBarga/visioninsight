@@ -601,54 +601,37 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
 
     # ---------- OBJECTS ----------
     if intent in ("count_objects", "list_objects"):
-        refined_available = bool(obj_ref_stats and obj_ref_stats.get("available"))
-        refined_labels = (obj_ref_stats or {}).get("unique_by_label") or {}
+        if not obj_stats:
+            return (intent, "Objects stats not found. Run analysis again to generate objects_stats.json.", {}, 0.4)
 
-        if refined_available and refined_labels:
-            unique_total = int(obj_ref_stats.get("unique_total", 0))
-            unique_by_class = refined_labels
-            source_name = "objects_refined_stats.json"
-            label_kind = "refined_label"
-        elif obj_stats:
-            unique_total = int(obj_stats.get("unique_total", 0))
-            unique_by_class = obj_stats.get("unique_by_class") or {}
-            source_name = "objects_stats.json"
-            label_kind = "class_name"
-        else:
-            return (intent, "Objects stats not found. Run analysis again with object analysis enabled.", {}, 0.4)
+        unique_total = obj_stats.get("unique_total", 0)
+        unique_by_class = obj_stats.get("unique_by_class") or {}
 
         available_classes = list(unique_by_class.keys())
         matched = _match_object_class_from_question(question, available_classes)
 
         if intent == "count_objects":
             if matched:
-                count = int(unique_by_class.get(matched, 0))
-                answer = f"Total unique '{matched}' detected: {count}."
-                evidence = {label_kind: matched, "unique": count, "source": source_name}
-                return (intent, answer, evidence, 0.92 if refined_available else 0.9)
+                n = int(unique_by_class.get(matched, 0))
+                answer = f"Total unique '{matched}' detected: {n}."
+                evidence = {"class_name": matched, "unique": n, "source": "objects_stats.json"}
+                return (intent, answer, evidence, 0.9)
 
+            on_screen = obj_stats.get("on_screen") or {}
             answer = f"Total unique objects detected: {unique_total}."
-            evidence = {
-                "unique_total": unique_total,
-                "unique_by_label_top": dict(list(unique_by_class.items())[:10]),
-                "source": source_name,
-                "refined": refined_available,
-            }
-            return (intent, answer, evidence, 0.92 if refined_available else 0.9)
+            if on_screen:
+                answer += f" On-screen objects: avg={on_screen.get('avg', 0)}, peak={on_screen.get('max', 0)}."
+            evidence = {"unique_total": unique_total, "unique_by_class_top": dict(list(unique_by_class.items())[:10]), "source": "objects_stats.json"}
+            return (intent, answer, evidence, 0.9)
 
-        if not unique_by_class:
-            return (intent, "No objects were detected (non-person classes).", {"unique_by_label": {}}, 0.85)
+        if intent == "list_objects":
+            if not unique_by_class:
+                return (intent, "No objects were detected (non-person classes).", {"unique_by_class": {}}, 0.85)
 
-        top = list(unique_by_class.items())[:10]
-        pretty = ", ".join([f"{name}={count}" for name, count in top])
-        prefix = "Refined object labels" if refined_available else "Detected object classes"
-        answer = f"{prefix} (top): {pretty}."
-        return (
-            intent,
-            answer,
-            {"unique_by_label": unique_by_class, "source": source_name, "refined": refined_available},
-            0.92 if refined_available else 0.9,
-        )
+            top = list(unique_by_class.items())[:10]
+            pretty = ", ".join([f"{k}={v}" for k, v in top])
+            answer = f"Detected object classes (top): {pretty}."
+            return (intent, answer, {"unique_by_class": unique_by_class, "source": "objects_stats.json"}, 0.9)
 
     # ---------- SUMMARY ----------
     if intent == "summary":
