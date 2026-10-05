@@ -2,7 +2,7 @@
 
 ## Request and processing path
 
-The FastAPI process handles registration, sessions, API keys, uploads, account-scoped reads, and Paddle webhooks. Uploads are validated, probed with OpenCV, copied to private storage, and inserted into the persistent database queue. The worker claims one queued analysis transactionally and runs detection, tracking, derived metrics, moment selection, keyframe extraction, and optional exports. Clients poll the job status while it runs.
+The FastAPI process handles registration, sessions, API keys, uploads, account-scoped reads, and Paddle webhooks. Uploads are streamed within size limits, inspected with FFprobe, copied to private storage, and inserted into the persistent database queue. The worker decodes frames with OpenCV and runs detection, tracking, derived metrics, moment selection, keyframe extraction, and optional exports. Clients poll the job status while it runs.
 
 Production uses PostgreSQL for users, billing state, quotas, and the job queue. The initial deployment uses a shared local volume for videos and artifacts and one worker. This is a single-host design; multi-host scaling needs object storage and distributed job ownership/leases before adding workers. Development defaults to SQLite and an embedded worker.
 
