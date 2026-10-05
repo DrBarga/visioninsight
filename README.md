@@ -1,124 +1,72 @@
 # VisionInsight
 
-VisionInsight is a computer vision system for **crowd and event video analytics**.  
-It transforms raw videos into structured data, analytics, highlights, and natural-language answers.
+VisionInsight turns recorded MP4 footage into timestamped moments, crowd and object metrics, optional region measurements, evidence cards, and exportable reports. It is designed for reviewing events and public spaces. It does not identify people or infer age, gender, or emotion.
 
-The system is designed for videos with many people (festivals, public events, concerts, streets) and focuses on **explainable intelligence**, not black-box predictions.
+This repository is a v1.0 release candidate. Do not enable public paid access until the gates in [docs/RELEASE_GATE.md](docs/RELEASE_GATE.md) are complete. In particular, the current Ultralytics YOLOv8 dependency needs a commercial-license decision for a closed-source service.
 
----
+The current implementation against the supplied product blueprint is tracked in [docs/BLUEPRINT_STATUS.md](docs/BLUEPRINT_STATUS.md).
 
-## Core Capabilities
+## Local development
 
-- Person detection (YOLOv8)
-- Multi-object tracking (IOU-based)
-- Crowd statistics and dynamics
-- High-density crowd window detection
-- Automatic video highlights extraction
-- Natural-language Q&A over video analytics (no LLMs yet)
-- Fully traceable results (JSON / JSONL artifacts)
+Use Python 3.12 and FFmpeg. On Windows PowerShell:
 
----
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+$env:PYTHONPATH = "backend"
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
 
-## Project Structure
+Open `http://127.0.0.1:8000`. Development mode uses SQLite, automatically verifies local test accounts, and runs one embedded video worker. It is not a production configuration.
 
-backend/
-├── app/
-│ ├── video/ # video processing & tracking
-│ ├── analytics/ # stats, highlights, crowd dynamics
-│ ├── query/ # intents, Q&A engine
-│ ├── detection/ # YOLO detector
-│ └── tracking/ # IOU tracker
-├── runs/ # analysis outputs (auto-generated)
-└── main.py # FastAPI entry point
+Run the tests:
 
----
+```powershell
+$env:PYTHONPATH = "backend"
+.\.venv\Scripts\python.exe -m pytest backend/tests -q
+```
 
-## Each video analysis creates a folder:
+## Container deployment
 
-runs/<analysis_id>/
-├── input.mp4
-├── output.mp4
-├── summary.json
-├── stats.json
-├── highlights.json
-├── timeline.jsonl
-├── events.jsonl
-└── people.jsonl
+Copy `.env.example` to `.env`, replace the database password, and run `docker compose up --build`. The API binds to `127.0.0.1:8000`; put an HTTPS reverse proxy in front of it for public access. The API and worker share a persistent analysis volume. PostgreSQL uses a separate volume.
 
----
+For production, set `VISIONINSIGHT_ENV=production`, an HTTPS `VISIONINSIGHT_PUBLIC_BASE_URL`, `VISIONINSIGHT_COOKIE_SECURE=true`, SMTP settings, legal URLs and business contact. Do not set `VISIONINSIGHT_MODEL_LICENSE_CLEARED=true` until the model licensing route is documented and approved. Paid checkout also requires an approved Paddle account, live API key, webhook secret, two recurring price IDs, and matching public price labels. Missing values keep checkout disabled.
 
-## Requirements
+See [operations](docs/OPERATIONS.md) for deployment, backup, restore, and incident procedures.
 
-- Python 3.10+
-- CPU is sufficient (GPU optional)
-- OS: Windows / Linux / macOS
+## Product flow
 
-Install dependencies:
-```bash```
-pip install -r requirements.txt
+1. Register and verify an email address in production.
+2. Upload an MP4 using Quick Scan or Event Pulse. Upload size, video duration, source-video storage, and monthly processing minutes depend on the plan.
+3. Poll the analysis resource until it completes or fails. The worker writes versioned artifacts and source-linked evidence.
+4. Review metrics and moments, ask supported questions, inspect the original video, and export JSON, an annotated video, or a short clip.
+5. Delete an analysis manually or let retention remove it after the plan's retention period.
 
----
+The built-in Ask flow answers known metric questions deterministically. For other questions it retrieves relevant moments; it does not generate unsupported factual claims. Semantic retrieval is optional and must be configured and evaluated separately. Tracking IDs are estimates, not identities. A track appearing or disappearing is not a physical entrance or exit; configure a line to measure crossings.
 
-How to Run
-From the backend directory:
-python -m uvicorn app.main:app
+## API
 
-Server will start at:
-http://127.0.0.1:8000
+The OpenAPI specification is at `/docs`. All video and artifact endpoints require a session or API key and check ownership. Browser sessions require `X-CSRF-Token` for writes. API keys are available only on paid plans and are shown once when created.
 
-Interactive API documentation:
-http://127.0.0.1:8000/docs
+Main endpoints:
 
----
+- `POST /v1/auth/register`, `POST /v1/auth/login`, `GET /v1/auth/me`
+- `POST /v1/analyses`, `GET /v1/analyses/{id}`, `POST /v1/analyses/{id}/cancel`, `DELETE /v1/analyses/{id}`
+- `GET /v1/analyses/{id}/overview`, `/moments`, `/metrics`, `/report`, `/artifacts`
+- `POST /v1/analyses/{id}/query`
+- `POST /v1/billing/checkout`, `/portal`, `/webhooks/paddle`
+- `GET /health`, `GET /ready`
 
-## API Usage
+Upload with `POST /v1/analyses?recipe=quick_scan` and a raw MP4 request body (`Content-Type: video/mp4`). Event Pulse uses `recipe=event_pulse`. Optional `zones` and `lines` are JSON-encoded query parameters with normalized 0–1 coordinates. API details and examples are in [architecture](docs/ARCHITECTURE.md).
 
-1. Analyze a Video
+## Repository
 
-POST /analyze-video/
+- `backend/app/api`: authentication, analyses, billing
+- `backend/app/jobs`: persistent job worker
+- `backend/app/video`, `detection`, `tracking`, `analytics`, `moments`, `query`: analysis pipeline
+- `backend/app/db`, `storage`, `core`: state, files, settings, security
+- `frontend`: browser application
+- `backend/tests`: unit and integration tests
+- `scripts/evaluate_benchmark.py`: labeled-video evaluation
 
-Upload a video file.
-Response contains analysis_id and summary info
-
-2. Ask Questions About the Video
-
-POST /analysis/{analysis_id}/ask
-
-POST /analysis/{analysis_id}/ask
-
-Example body:
-{
-  "question": "When was it crowded?"
-}
-
-## Supported questions include:
-How many people?
-When was it crowded?
-When did the crowd start growing?
-What was the most dynamic moment?
-Give me highlights
-Give me a summary
-
-3. Get Generated Artifacts
-GET /analysis/{analysis_id}/summary
-GET /analysis/{analysis_id}/stats
-GET /analysis/{analysis_id}/highlights
-GET /analysis/{analysis_id}/timeline
-
----
-
-# Design Principles
-
-Deterministic and explainable logic
-No hidden decisions
-Every answer backed by data
-Built for extension (LLMs, databases, dashboards)
-
-LLMs will be added after structured understanding is complete
-
----
-
-## License
-
-This project is proprietary software. All rights reserved.
-See [LICENSE](LICENSE) for details.
+Test media, local run output, credentials, and local databases are ignored by Git. Previous commits may still contain historical media; removing it from Git history requires a separate coordinated history rewrite.

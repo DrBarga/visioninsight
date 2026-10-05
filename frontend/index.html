@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="VisionInsight turns recorded video into traceable moments, movement metrics, and answers linked to evidence.">
+  <title>VisionInsight — understand what happened in your video</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/regions.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a href="/" class="brand" aria-label="VisionInsight home"><span class="brand-mark">VI</span><span>VisionInsight</span></a>
+      <nav aria-label="Primary navigation"><a href="#how-it-works">How it works</a><a href="#plans">Plans</a><a href="/docs">API docs</a></nav>
+      <div class="account-actions"><span id="account-label"></span><button id="open-auth" class="button button-light">Sign in</button><button id="manage-billing" class="button button-light hidden">Billing</button><button id="logout" class="button button-light hidden">Sign out</button></div>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <p class="eyebrow"><span class="live-dot"></span> Video intelligence with traceable evidence</p>
+          <h1 id="hero-title">Know what happened.<br><em>See where it happened.</em></h1>
+          <p class="hero-lead">Turn recorded footage into key moments, crowd metrics, line crossings, and answers you can verify against the video.</p>
+          <div class="hero-actions"><a class="button button-primary" href="#workspace">Analyze a video <span aria-hidden="true">↗</span></a><a class="button button-outline" href="#how-it-works">Explore the workflow</a></div>
+          <div class="hero-notes"><span>Private by account</span><span>Evidence-linked answers</span><span>Exportable results</span></div>
+        </div>
+        <div class="preview-card" aria-label="Product workflow preview">
+          <div class="preview-top"><span class="window-dots"><i></i><i></i><i></i></span><span>Illustrative example</span><span class="status-pill">Workflow preview</span></div>
+          <div class="preview-visual"><div class="preview-frame"><span>01:42</span><div class="person person-one"></div><div class="person person-two"></div><div class="zone-outline"></div></div><div class="frame-caption">A moment worth reviewing, not another hour of scrubbing.</div></div>
+          <div class="preview-metrics"><div><small>Peak occupancy</small><strong>18 people</strong></div><div><small>Most active</small><strong>01:38–01:47</strong></div><div><small>Evidence</small><strong>6 moments</strong></div></div>
+        </div>
+      </section>
+
+      <section class="workflow section" id="how-it-works">
+        <div class="section-heading"><p class="eyebrow">From footage to findings</p><h2>Useful answers, grounded in the source.</h2><p>Start with a recorded MP4. Follow the analysis as it runs, inspect the moments it finds, then open the exact video context behind each result.</p></div>
+        <div class="steps"><article><span class="step-number">01</span><h3>Upload</h3><p>Choose a quick scan or a more detailed event analysis. Your video stays tied to your account.</p></article><article><span class="step-number">02</span><h3>Review</h3><p>See occupancy, tracking activity, and notable moments with timestamps and keyframes.</p></article><article><span class="step-number">03</span><h3>Verify</h3><p>Ask a question, inspect its evidence, and export a report or a short clip.</p></article></div>
+      </section>
+
+      <section class="workspace-section section" id="workspace">
+        <div class="section-heading"><p class="eyebrow">Your workspace</p><h2>Put your footage to work.</h2><p>People counts are estimates based on tracked detections. They are not identity recognition or a claim about physical entry and exit unless you define a crossing line.</p></div>
+        <div id="signed-out" class="workspace-gate"><div><h3>Sign in to start an analysis</h3><p>Create a free account to analyze a recorded video and keep its results private.</p></div><button id="gate-sign-in" class="button button-primary">Create an account</button></div>
+        <div id="signed-in" class="hidden">
+          <div id="email-gate" class="workspace-gate hidden"><div><h3>Check your email</h3><p>Confirm your address before uploading videos or starting a subscription.</p></div><button id="resend-email" class="button button-light">Resend link</button></div>
+          <div class="workspace-grid">
+            <form id="upload-form" class="panel upload-panel">
+              <div class="panel-title"><span class="panel-icon">↥</span><div><h3>New analysis</h3><p>MP4 video, up to your plan limit</p></div></div>
+              <label for="video-file" class="dropzone"><span class="upload-symbol">↥</span><strong>Choose an MP4 video</strong><span id="file-name">or drag it here</span></label>
+              <input id="video-file" type="file" accept="video/mp4,.mp4" required>
+              <label class="field-label" for="recipe">Analysis recipe</label>
+              <select id="recipe" name="recipe"><option value="quick_scan">Quick Scan — faster overview</option><option value="event_pulse">Event Pulse — detailed moments and annotated video</option></select>
+              <details class="region-editor">
+                <summary>Optional zone and crossing line</summary>
+                <p>Mark an area to measure occupancy, or a line to count crossings. Choose a video first, then click the preview to place points.</p>
+                <video id="region-video" class="hidden" muted playsinline preload="auto"></video>
+                <canvas id="region-canvas" class="hidden" aria-label="Video frame for drawing zones and crossing lines"></canvas>
+                <div class="region-actions">
+                  <button id="draw-zone" type="button">Draw zone</button>
+                  <button id="finish-zone" type="button">Save zone</button>
+                  <button id="draw-line" type="button">Draw line</button>
+                  <button id="clear-regions" type="button">Clear</button>
+                </div>
+                <p id="region-status" role="status">Choose a video to mark a zone or line.</p>
+              </details>
+              <button class="button button-primary button-wide" type="submit">Start analysis</button>
+              <p class="field-note">No facial recognition, age, gender, or emotion inference.</p>
+            </form>
+            <div class="panel library-panel"><div class="panel-heading"><div><h3>Recent analyses</h3><p id="usage-label">Loading usage…</p></div><button id="refresh-list" class="text-button">Refresh</button></div><div id="analysis-list" class="analysis-list"><p class="empty-state">No analyses yet.</p></div></div>
+          </div>
+              <div id="result" class="panel result-panel hidden"><div class="result-header"><div><p class="eyebrow">Analysis result</p><h3 id="result-title">Overview</h3><p id="result-status"></p></div><div class="result-actions"><a id="annotated-video" class="button button-light hidden" href="#">Annotated video</a><button id="open-report" class="button button-light">Export JSON</button><button id="delete-analysis" class="button button-danger">Delete</button></div></div><div id="progress-area" class="hidden"><div class="progress-track"><div id="progress-fill"></div></div><p id="progress-label"></p><button id="cancel-analysis" class="text-button">Cancel analysis</button></div><div id="result-content" class="hidden"><div id="metric-cards" class="metric-cards"></div><div class="result-grid"><div><h4>Key moments</h4><div id="moment-list" class="moment-list"></div></div><div class="answer-column"><h4>Ask this video</h4><form id="ask-form"><label class="sr-only" for="question">Question</label><div class="question-row"><input id="question" type="text" minlength="3" maxlength="500" placeholder="How many people were tracked?" required><button class="button button-primary" type="submit">Ask</button></div></form><div id="answer" class="answer-box"><p>Answers cite the analysis data or a video moment. Check the source before making a decision.</p></div><div id="video-wrap" class="video-wrap hidden"><video id="source-video" controls preload="metadata"></video><p id="video-caption"></p><a id="clip-link" class="button button-light" href="#">Download clip</a></div></div></div></div></div>
+        </div>
+      </section>
+
+      <section class="plans section" id="plans"><div class="section-heading"><p class="eyebrow">Simple plans</p><h2>Start free. Scale when you need more.</h2><p>Usage is measured in uploaded video minutes. Both available recipes use the same minute allowance; Event Pulse may take longer to process.</p></div><div id="plan-cards" class="plan-cards"></div></section>
+    </main>
+
+    <footer><div class="brand"><span class="brand-mark">VI</span><span>VisionInsight</span></div><p>Built for accountable review of recorded video. Automated observations can be wrong; verify important decisions against the source.</p><div id="footer-links"><a href="/docs">API documentation</a></div></footer>
+  </div>
+
+  <dialog id="auth-dialog"><form id="auth-form" method="dialog"><button id="close-auth" class="dialog-close" type="button" aria-label="Close">×</button><p class="eyebrow">Your workspace</p><h2 id="auth-title">Sign in</h2><label>Email<input id="email" type="email" autocomplete="email" required></label><label>Password<input id="password" type="password" minlength="12" autocomplete="current-password" required></label><p id="auth-error" class="error-text" role="alert"></p><button id="auth-submit" class="button button-primary button-wide" type="submit">Sign in</button><button id="switch-auth" class="text-button" type="button">Create a free account</button><button id="forgot-password" class="text-button" type="button">Forgot password?</button></form></dialog>
+  <dialog id="reset-dialog"><form id="reset-form" method="dialog"><button id="close-reset" class="dialog-close" type="button" aria-label="Close">×</button><p class="eyebrow">Account recovery</p><h2 id="reset-title">Reset password</h2><p id="reset-description">Enter your account email. We will send a one-time recovery link.</p><label id="reset-email-label">Email<input id="reset-email" type="email" autocomplete="email"></label><label id="reset-password-label" class="hidden">New password<input id="new-password" type="password" minlength="12" autocomplete="new-password"></label><p id="reset-error" class="error-text" role="alert"></p><button id="reset-submit" class="button button-primary button-wide" type="submit">Send recovery link</button></form></dialog>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+</body>
+</html>

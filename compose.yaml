@@ -1,0 +1,93 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: visioninsight
+      POSTGRES_USER: visioninsight
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U visioninsight -d visioninsight"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    build: .
+    environment:
+      VISIONINSIGHT_ENV: ${VISIONINSIGHT_ENV:-development}
+      VISIONINSIGHT_EMBEDDED_WORKER: "false"
+      VISIONINSIGHT_COOKIE_SECURE: ${VISIONINSIGHT_COOKIE_SECURE:-false}
+      VISIONINSIGHT_DATABASE_URL: postgresql+psycopg://visioninsight:${POSTGRES_PASSWORD}@db:5432/visioninsight
+      VISIONINSIGHT_DATA_DIR: /data
+      VISIONINSIGHT_RUNS_DIR: /data/runs
+      VISIONINSIGHT_MODEL_PATH: /app/backend/yolov8n.pt
+      VISIONINSIGHT_MODEL_LICENSE_CLEARED: ${VISIONINSIGHT_MODEL_LICENSE_CLEARED:-false}
+      VISIONINSIGHT_MAX_UPLOAD_MB: ${VISIONINSIGHT_MAX_UPLOAD_MB:-1000}
+      VISIONINSIGHT_MAX_DURATION_SEC: ${VISIONINSIGHT_MAX_DURATION_SEC:-7200}
+      VISIONINSIGHT_MAX_VIDEO_PIXELS: ${VISIONINSIGHT_MAX_VIDEO_PIXELS:-8294400}
+      VISIONINSIGHT_MAX_VIDEO_FPS: ${VISIONINSIGHT_MAX_VIDEO_FPS:-60}
+      VISIONINSIGHT_MAX_VIDEO_FRAMES: ${VISIONINSIGHT_MAX_VIDEO_FRAMES:-432000}
+      VISIONINSIGHT_MAX_PROCESSING_SECONDS: ${VISIONINSIGHT_MAX_PROCESSING_SECONDS:-7200}
+      VISIONINSIGHT_MAX_DERIVED_MB: ${VISIONINSIGHT_MAX_DERIVED_MB:-2048}
+      VISIONINSIGHT_MIN_FREE_DISK_MB: ${VISIONINSIGHT_MIN_FREE_DISK_MB:-1024}
+      VISIONINSIGHT_PUBLIC_BASE_URL: ${VISIONINSIGHT_PUBLIC_BASE_URL:-http://localhost:8000}
+      PADDLE_ENVIRONMENT: ${PADDLE_ENVIRONMENT:-sandbox}
+      PADDLE_API_KEY: ${PADDLE_API_KEY:-}
+      PADDLE_WEBHOOK_SECRET: ${PADDLE_WEBHOOK_SECRET:-}
+      PADDLE_DEVELOPER_PRICE_ID: ${PADDLE_DEVELOPER_PRICE_ID:-}
+      PADDLE_TEAM_PRICE_ID: ${PADDLE_TEAM_PRICE_ID:-}
+      PADDLE_DEVELOPER_DISPLAY_PRICE: ${PADDLE_DEVELOPER_DISPLAY_PRICE:-}
+      PADDLE_TEAM_DISPLAY_PRICE: ${PADDLE_TEAM_DISPLAY_PRICE:-}
+      VISIONINSIGHT_TERMS_URL: ${VISIONINSIGHT_TERMS_URL:-}
+      VISIONINSIGHT_PRIVACY_URL: ${VISIONINSIGHT_PRIVACY_URL:-}
+      VISIONINSIGHT_BUSINESS_EMAIL: ${VISIONINSIGHT_BUSINESS_EMAIL:-}
+      VISIONINSIGHT_SMTP_HOST: ${VISIONINSIGHT_SMTP_HOST:-}
+      VISIONINSIGHT_SMTP_PORT: ${VISIONINSIGHT_SMTP_PORT:-465}
+      VISIONINSIGHT_SMTP_USER: ${VISIONINSIGHT_SMTP_USER:-}
+      VISIONINSIGHT_SMTP_PASSWORD: ${VISIONINSIGHT_SMTP_PASSWORD:-}
+      VISIONINSIGHT_SMTP_FROM: ${VISIONINSIGHT_SMTP_FROM:-}
+    volumes:
+      - analysis_data:/data
+    ports:
+      - "127.0.0.1:8000:8000"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: ["python", "-m", "app.jobs.worker"]
+    cpus: ${VISIONINSIGHT_WORKER_CPUS:-2.0}
+    mem_limit: ${VISIONINSIGHT_WORKER_MEMORY_LIMIT:-4g}
+    pids_limit: 256
+    environment:
+      VISIONINSIGHT_ENV: ${VISIONINSIGHT_ENV:-development}
+      VISIONINSIGHT_EMBEDDED_WORKER: "false"
+      VISIONINSIGHT_COOKIE_SECURE: ${VISIONINSIGHT_COOKIE_SECURE:-false}
+      VISIONINSIGHT_DATABASE_URL: postgresql+psycopg://visioninsight:${POSTGRES_PASSWORD}@db:5432/visioninsight
+      VISIONINSIGHT_DATA_DIR: /data
+      VISIONINSIGHT_RUNS_DIR: /data/runs
+      VISIONINSIGHT_MODEL_PATH: /app/backend/yolov8n.pt
+      VISIONINSIGHT_MODEL_LICENSE_CLEARED: ${VISIONINSIGHT_MODEL_LICENSE_CLEARED:-false}
+      VISIONINSIGHT_PUBLIC_BASE_URL: ${VISIONINSIGHT_PUBLIC_BASE_URL:-http://localhost:8000}
+      VISIONINSIGHT_TERMS_URL: ${VISIONINSIGHT_TERMS_URL:-}
+      VISIONINSIGHT_PRIVACY_URL: ${VISIONINSIGHT_PRIVACY_URL:-}
+      VISIONINSIGHT_BUSINESS_EMAIL: ${VISIONINSIGHT_BUSINESS_EMAIL:-}
+    volumes:
+      - analysis_data:/data
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  analysis_data:

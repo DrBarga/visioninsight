@@ -6,6 +6,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .venv/
+.env
 venv/
 
 # IDE
@@ -14,7 +15,12 @@ venv/
 
 # Runtime output
 backend/runs/
+backend/data/
 runs/
+.patch_backups/
+Test files/
+docx_render_initial/
+.playwright-cli/
 *.log
 
 # Local models and large media

@@ -1,0 +1,17 @@
+.git
+.idea
+.venv
+.patch_backups
+.playwright-cli
+Test files
+docx_render_initial
+backend/data
+backend/runs
+backend/tests
+**/__pycache__
+**/.pytest_cache
+*.mp4
+*.mov
+*.avi
+*.wav
+*.log

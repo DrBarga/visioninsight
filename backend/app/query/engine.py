@@ -440,7 +440,7 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
             evidence["avg_on_screen"] = pc.get("avg", 0.0)
             evidence["peak_on_screen"] = pc.get("max", 0)
 
-        answer = f"Total unique people detected: {unique_people}."
+        answer = f"Distinct person tracks observed (estimate): {unique_people}."
         if "avg_on_screen" in evidence or "peak_on_screen" in evidence:
             answer += f" On-screen crowd: avg={evidence.get('avg_on_screen', 0)}, peak={evidence.get('peak_on_screen', 0)}."
         return (intent, answer, evidence, 0.9)
@@ -545,30 +545,30 @@ def answer_question(run_dir: str, question: str) -> Tuple[str, str, Dict[str, An
         if intent == "most_dynamic":
             m = dyn.get("most_dynamic_window")
             if not m:
-                return (intent, "No strong enter/exit burst detected. Try asking about crowd windows or highlights.", {"crowd_dynamics": dyn}, 0.7)
-            answer = f"Most dynamic moment (enter/exit burst): {m['count']} events during {m['start_sec']}s–{m['end_sec']}s."
+                return (intent, "No strong tracking activity detected. Try asking about crowd windows or highlights.", {"crowd_dynamics": dyn}, 0.7)
+            answer = f"Most dynamic tracking moment: {m['count']} track appearance/loss events during {m['start_sec']}s–{m['end_sec']}s."
             return (intent, answer, {"most_dynamic_window": m, "source": "stats.json"}, 0.9)
 
     if intent == "events":
         if os.path.exists(events_path):
-            entered = 0
-            exited = 0
+            started = 0
+            lost = 0
             sample: List[Dict[str, Any]] = []
 
             for row in _iter_jsonl(events_path):
                 evs = row.get("events") or []
                 for ev in evs:
                     et = ev.get("type")
-                    if et == "person_entered":
-                        entered += 1
-                    elif et == "person_exited":
-                        exited += 1
+                    if et == "track_started":
+                        started += 1
+                    elif et == "track_lost":
+                        lost += 1
 
                     if len(sample) < 10:
                         sample.append({"frame": row.get("frame"), "time_sec": row.get("time_sec"), **ev})
 
-            answer = f"Events summary: entered={entered}, exited={exited}. Sample (up to 10) included in evidence."
-            return (intent, answer, {"entered": entered, "exited": exited, "sample": sample, "source": "events.jsonl"}, 0.85)
+            answer = f"Tracking events: tracks started={started}, tracks lost={lost}. These are not physical entries or exits."
+            return (intent, answer, {"tracks_started": started, "tracks_lost": lost, "sample": sample, "source": "events.jsonl"}, 0.85)
 
         return (intent, "Events file not found for this analysis.", {}, 0.4)
 

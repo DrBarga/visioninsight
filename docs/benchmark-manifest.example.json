@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "cases": [
+    {
+      "name": "labeled-event-01",
+      "run_dir": "backend/runs/replace-with-analysis-id",
+      "truth": {
+        "peak_visible_people": 0,
+        "line_crossings": [],
+        "notable_intervals": []
+      }
+    }
+  ]
+}

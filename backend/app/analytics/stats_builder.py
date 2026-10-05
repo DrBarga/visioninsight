@@ -225,9 +225,9 @@ class StatsBuilder:
                 "to": round(float(window_average[index]), 2),
                 "window_sec": round(self.dynamics_window_sec, 2),
             }
-            if fastest_growth is None or delta > float(fastest_growth["delta"]):
+            if delta > 0 and (fastest_growth is None or delta > float(fastest_growth["delta"])):
                 fastest_growth = item
-            if fastest_drop is None or delta < float(fastest_drop["delta"]):
+            if delta < 0 and (fastest_drop is None or delta < float(fastest_drop["delta"])):
                 fastest_drop = item
 
         most_dynamic = None
@@ -244,7 +244,7 @@ class StatsBuilder:
                     running_sum -= queue.pop(0)
                 rolling_sums.append(running_sum)
 
-            if rolling_sums:
+            if rolling_sums and max(rolling_sums) > 0:
                 max_index = max(range(len(rolling_sums)), key=lambda index: rolling_sums[index])
                 start_index = max(0, max_index - (dynamics_window - 1))
                 most_dynamic = {

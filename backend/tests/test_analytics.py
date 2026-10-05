@@ -15,6 +15,27 @@ def _write_jsonl(path: Path, rows):
 
 
 class AnalyticsBuilderTests(unittest.TestCase):
+    def test_dynamics_do_not_invent_growth_drop_or_event_bursts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            timeline = Path(tmp) / "timeline.jsonl"
+            events = Path(tmp) / "events.jsonl"
+            events.write_text("", encoding="utf-8")
+            for counts, expected_growth, expected_drop in [
+                ([1, 2, 3], True, False),
+                ([3, 2, 1], False, True),
+                ([2, 2, 2], False, False),
+            ]:
+                _write_jsonl(timeline, [
+                    {"frame": index, "time_sec": float(index), "people": [{}] * count}
+                    for index, count in enumerate(counts)
+                ])
+                dynamics = StatsBuilder(crowd_smoothing_sec=0, dynamics_window_sec=1).build_from_timeline_jsonl(
+                    "dynamic-test", timeline, 1.0, events
+                ).crowd_dynamics
+                self.assertEqual(dynamics["fastest_growth"] is not None, expected_growth)
+                self.assertEqual(dynamics["fastest_drop"] is not None, expected_drop)
+                self.assertIsNone(dynamics["most_dynamic_window"])
+
     def test_stats_builder_finds_windows_and_dynamics(self):
         with tempfile.TemporaryDirectory() as tmp:
             timeline_path = Path(tmp) / "timeline.jsonl"
@@ -71,6 +92,13 @@ class AnalyticsBuilderTests(unittest.TestCase):
             self.assertIn("crowd_window", highlight_types)
             self.assertIn("most_dynamic", highlight_types)
             self.assertEqual(highlight_types[0], "fastest_growth")
+
+    def test_no_peak_crowd_highlight_when_nobody_is_detected(self):
+        highlights = HighlightsBuilder().build_from_stats_dict(
+            analysis_id="empty-video",
+            stats={"fps": 25, "people_count": {"max": 0, "max_at": {"time_sec": 0}}},
+        )
+        self.assertEqual(highlights.highlights, [])
 
     def test_objects_stats_builder_uses_majority_vote_per_track(self):
         with tempfile.TemporaryDirectory() as tmp:

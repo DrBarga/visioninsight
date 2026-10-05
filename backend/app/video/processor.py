@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 import math
+import shutil
 import threading
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import cv2
 
@@ -15,9 +16,11 @@ from app.analytics.object_refinement_builder import ObjectRefinementBuilder
 from app.analytics.objects_refined_stats_builder import ObjectsRefinedStatsBuilder
 from app.analytics.objects_stats_builder import ObjectsStatsBuilder
 from app.analytics.quality_builder import TrackingQualityBuilder
+from app.analytics.regions import RegionAnalyzer
 from app.analytics.stats_builder import StatsBuilder
 from app.analytics.transcript_builder import TranscriptBuilder
 from app.detection.yolo import YOLODetector
+from app.moments.builder import MomentBuilder
 from app.tracking.iou_tracker import IOUTracker
 from app.version import __version__
 from app.video.analysis_profiles import ResolvedAnalysisOptions, resolve_analysis_options
@@ -28,7 +31,9 @@ def _jsonl_write(file, payload: Dict[str, Any]) -> None:
 
 
 def _write_json(path: Path, payload: Any) -> None:
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    temporary.replace(path)
 
 
 def _is_person(detection: Dict[str, Any]) -> bool:
@@ -40,6 +45,10 @@ def _is_visible_confirmed(track: Dict[str, Any]) -> bool:
     return track.get("track_state") == "confirmed" and track.get("visible") is True
 
 
+class AnalysisCancelled(Exception):
+    """Raised when a queued or running analysis is cancelled by its owner."""
+
+
 class VideoProcessor:
     def __init__(self, runs_dir: str = "runs", model_path: str = "yolov8n.pt"):
         self.runs_dir = Path(runs_dir)
@@ -48,7 +57,8 @@ class VideoProcessor:
         # Keep CLIP loaded after its first use instead of reloading it for every full analysis.
         self.object_refinement_builder = ObjectRefinementBuilder()
         self.objects_refined_stats_builder = ObjectsRefinedStatsBuilder()
-        # Shared model objects are protected until processing is moved to dedicated workers.
+        self.moment_builder = MomentBuilder()
+        # One processor instance may be reused by the worker across sequential jobs.
         self._process_lock = threading.Lock()
 
     @staticmethod
@@ -91,22 +101,64 @@ class VideoProcessor:
         transcript_backend: str = "auto",
         transcript_model: str = "base",
         transcript_language: Optional[str] = None,
+        regions: Optional[Dict[str, Any]] = None,
+        max_source_frames: Optional[int] = None,
+        max_source_pixels: Optional[int] = None,
+        max_source_fps: Optional[int] = None,
+        max_wall_seconds: Optional[int] = None,
+        max_derived_bytes: Optional[int] = None,
+        min_free_disk_bytes: Optional[int] = None,
+        progress_callback: Optional[Callable[[str, int], None]] = None,
+        cancel_check: Optional[Callable[[], bool]] = None,
     ) -> dict:
+        analysis_id = analysis_id or str(uuid.uuid4())
         with self._process_lock:
-            return self._process_locked(
-                input_path=input_path,
-                analysis_id=analysis_id,
-                analysis_mode=analysis_mode,
-                detection_profile=detection_profile,
-                include_objects=include_objects,
-                enable_transcript=enable_transcript,
-                enable_object_refinement=enable_object_refinement,
-                save_output_video=save_output_video,
-                frame_stride=frame_stride,
-                transcript_backend=transcript_backend,
-                transcript_model=transcript_model,
-                transcript_language=transcript_language,
-            )
+            try:
+                return self._process_locked(
+                    input_path=input_path,
+                    analysis_id=analysis_id,
+                    analysis_mode=analysis_mode,
+                    detection_profile=detection_profile,
+                    include_objects=include_objects,
+                    enable_transcript=enable_transcript,
+                    enable_object_refinement=enable_object_refinement,
+                    save_output_video=save_output_video,
+                    frame_stride=frame_stride,
+                    transcript_backend=transcript_backend,
+                    transcript_model=transcript_model,
+                    transcript_language=transcript_language,
+                    regions=regions,
+                    max_source_frames=max_source_frames,
+                    max_source_pixels=max_source_pixels,
+                    max_source_fps=max_source_fps,
+                    max_wall_seconds=max_wall_seconds,
+                    max_derived_bytes=max_derived_bytes,
+                    min_free_disk_bytes=min_free_disk_bytes,
+                    progress_callback=progress_callback,
+                    cancel_check=cancel_check,
+                )
+            except Exception as error:
+                run_dir = self.runs_dir / analysis_id
+                run_dir.mkdir(parents=True, exist_ok=True)
+                meta_path = run_dir / "meta.json"
+                try:
+                    meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+                except (OSError, json.JSONDecodeError):
+                    meta = {}
+                cancelled = isinstance(error, AnalysisCancelled)
+                meta.update({
+                    "analysis_id": analysis_id,
+                    "status": "cancelled" if cancelled else "failed",
+                    "schema_version": "1.0",
+                    "error": {
+                        "code": "ANALYSIS_CANCELLED" if cancelled else "PROCESSING_FAILED",
+                        "message": "Analysis cancelled" if cancelled else str(error),
+                    },
+                })
+                _write_json(meta_path, meta)
+                if progress_callback is not None:
+                    progress_callback(meta["status"], 100 if cancelled else 0)
+                raise
 
     def _process_locked(
         self,
@@ -122,8 +174,42 @@ class VideoProcessor:
         transcript_backend: str,
         transcript_model: str,
         transcript_language: Optional[str],
+        regions: Optional[Dict[str, Any]],
+        max_source_frames: Optional[int],
+        max_source_pixels: Optional[int],
+        max_source_fps: Optional[int],
+        max_wall_seconds: Optional[int],
+        max_derived_bytes: Optional[int],
+        min_free_disk_bytes: Optional[int],
+        progress_callback: Optional[Callable[[str, int], None]],
+        cancel_check: Optional[Callable[[], bool]],
     ) -> dict:
         total_started = time.perf_counter()
+        analysis_id = analysis_id or str(uuid.uuid4())
+        run_dir = self.runs_dir / analysis_id
+
+        def check_limits() -> None:
+            if max_wall_seconds is not None and time.perf_counter() - total_started > max_wall_seconds:
+                raise RuntimeError("Analysis processing time limit exceeded")
+            if min_free_disk_bytes is not None and run_dir.exists() and \
+                    shutil.disk_usage(run_dir).free < min_free_disk_bytes:
+                raise RuntimeError("Analysis storage capacity limit reached")
+            if max_derived_bytes is not None:
+                generated = sum(path.stat().st_size for path in run_dir.rglob("*")
+                                if path.is_file() and path.name != "input.mp4")
+                if generated > max_derived_bytes:
+                    raise RuntimeError("Analysis output size limit exceeded")
+
+        def report(stage: str, progress: int) -> None:
+            check_limits()
+            if progress_callback is not None:
+                progress_callback(stage, progress)
+
+        def check_cancel() -> None:
+            if cancel_check is not None and cancel_check():
+                raise AnalysisCancelled()
+
+        check_cancel()
         options: ResolvedAnalysisOptions = resolve_analysis_options(
             mode=analysis_mode,
             detection_profile=detection_profile,
@@ -134,8 +220,6 @@ class VideoProcessor:
             frame_stride=frame_stride,
         )
 
-        analysis_id = analysis_id or str(uuid.uuid4())
-        run_dir = self.runs_dir / analysis_id
         self._ensure_dir(run_dir)
 
         source_path = Path(input_path)
@@ -157,6 +241,7 @@ class VideoProcessor:
         summary_path = run_dir / "summary.json"
         transcript_path = run_dir / "transcript.jsonl"
         audio_wav_path = run_dir / "audio.wav"
+        zones_path = run_dir / "zones.json"
 
         self.detector.set_profile(options.detection_profile)
         people_tracker, objects_tracker = self._create_trackers(options.frame_stride)
@@ -171,6 +256,16 @@ class VideoProcessor:
         if width <= 0 or height <= 0:
             capture.release()
             raise RuntimeError("Video has invalid dimensions")
+        if (max_source_pixels is not None and width * height > max_source_pixels) or (
+            max_source_fps is not None and (not math.isfinite(fps) or fps > max_source_fps)
+        ):
+            capture.release()
+            raise RuntimeError("Video exceeds the processing limits")
+        try:
+            region_analyzer = RegionAnalyzer(regions or {}, width, height, fps, options.frame_stride)
+        except Exception:
+            capture.release()
+            raise
 
         writer = None
         if options.save_output_video:
@@ -186,6 +281,7 @@ class VideoProcessor:
 
         meta: Dict[str, Any] = {
             "analysis_id": analysis_id,
+            "schema_version": "1.0",
             "status": "processing",
             "version": __version__,
             "input_file": source_path.name,
@@ -221,8 +317,10 @@ class VideoProcessor:
                 "model": transcript_model,
                 "language": transcript_language,
             },
+            "regions": region_analyzer.regions,
         }
         _write_json(meta_path, meta)
+        report("detecting", 10)
 
         source_frame_id = 0
         analyzed_frames = 0
@@ -231,6 +329,7 @@ class VideoProcessor:
         exit_threshold_source_frames = max(1, int(round(fps * 2.0)))
 
         video_loop_started = time.perf_counter()
+        estimated_frames = max(0, int(capture.get(cv2.CAP_PROP_FRAME_COUNT)))
         try:
             with timeline_path.open("w", encoding="utf-8") as timeline_file, \
                  events_path.open("w", encoding="utf-8") as events_file, \
@@ -238,6 +337,11 @@ class VideoProcessor:
                  objects_path.open("w", encoding="utf-8") as objects_file:
 
                 while True:
+                    check_cancel()
+                    if max_source_frames is not None and source_frame_id >= max_source_frames:
+                        raise RuntimeError("Video frame limit exceeded")
+                    if source_frame_id % 25 == 0:
+                        check_limits()
                     success, frame = capture.read()
                     if not success:
                         break
@@ -258,21 +362,22 @@ class VideoProcessor:
 
                     people_visible = [track for track in people_active if _is_visible_confirmed(track)]
                     objects_visible = [track for track in objects_active if _is_visible_confirmed(track)]
+                    time_sec = round(source_frame_id / fps, 2)
+                    occupancy, crossing_events = region_analyzer.update(source_frame_id, time_sec, people_visible)
 
-                    events: List[Dict[str, Any]] = []
+                    events: List[Dict[str, Any]] = list(crossing_events)
                     for track in people_visible:
                         track_id = int(track["track_id"])
                         last_seen_confirmed[track_id] = source_frame_id
                         if track_id not in seen_people_tracks:
                             seen_people_tracks.add(track_id)
-                            events.append({"type": "person_entered", "track_id": track_id})
+                            events.append({"type": "track_started", "track_id": track_id})
 
                     for track_id, last_frame in list(last_seen_confirmed.items()):
                         if source_frame_id - last_frame > exit_threshold_source_frames:
-                            events.append({"type": "person_exited", "track_id": int(track_id)})
+                            events.append({"type": "track_lost", "track_id": int(track_id)})
                             del last_seen_confirmed[track_id]
 
-                    time_sec = round(source_frame_id / fps, 2)
                     people_row = {
                         "frame": source_frame_id,
                         "time_sec": time_sec,
@@ -288,6 +393,7 @@ class VideoProcessor:
                         "time_sec": time_sec,
                         "people": people_visible,
                         "events": events,
+                        "zones": occupancy,
                     }
 
                     # Full sampled time axis: empty frames are intentionally retained.
@@ -302,6 +408,8 @@ class VideoProcessor:
                         })
 
                     analyzed_frames += 1
+                    if estimated_frames and analyzed_frames % 25 == 0:
+                        report("detecting", min(70, 10 + int(60 * source_frame_id / estimated_frames)))
                     if writer is not None:
                         writer.write(processed_frame)
                     source_frame_id += 1
@@ -310,6 +418,12 @@ class VideoProcessor:
             if writer is not None:
                 writer.release()
 
+        if source_frame_id == 0:
+            raise ValueError("Video contains no readable frames")
+        zones_summary = region_analyzer.summary()
+        _write_json(zones_path, zones_summary)
+
+        report("analytics", 75)
         timings: Dict[str, float] = {
             "video_loop_sec": round(time.perf_counter() - video_loop_started, 3),
         }
@@ -347,6 +461,8 @@ class VideoProcessor:
         timings["analytics_sec"] = round(time.perf_counter() - analytics_started, 3)
 
         refinement_summary: Dict[str, Any]
+        check_cancel()
+        report("refinement", 85)
         refinement_started = time.perf_counter()
         if options.enable_object_refinement:
             try:
@@ -373,12 +489,14 @@ class VideoProcessor:
         refined_stats_result = self.objects_refined_stats_builder.build(
             object_refinements_json_path=object_refinements_path,
             output_stats_path=objects_refined_stats_path,
+            objects_jsonl_path=objects_path,
             top_n=20,
-            min_confidence=0.0,
         )
         timings["object_refinement_sec"] = round(time.perf_counter() - refinement_started, 3)
 
         transcript_info = None
+        check_cancel()
+        report("transcript", 92)
         transcript_started = time.perf_counter()
         if options.enable_transcript:
             transcript_result = self.transcript_builder.build_from_video(
@@ -392,10 +510,14 @@ class VideoProcessor:
             )
             transcript_info = transcript_result.to_dict()
         timings["transcript_sec"] = round(time.perf_counter() - transcript_started, 3)
+        check_cancel()
+        report("moments", 97)
+        moment_info = self.moment_builder.build(run_dir, source_path)
         timings["total_sec"] = round(time.perf_counter() - total_started, 3)
 
         summary = {
             "analysis_id": analysis_id,
+            "schema_version": "1.0",
             "version": __version__,
             "status": "completed",
             "options": options.to_dict(),
@@ -417,25 +539,29 @@ class VideoProcessor:
             },
             "timeline_count": analyzed_frames,
             "transcript": transcript_info,
+            "moments": moment_info,
+            "zones": zones_summary,
             "timings": timings,
             "artifacts": {
-                "run_dir": str(run_dir),
-                "input_video": str(source_path),
-                "meta": str(meta_path),
-                "summary": str(summary_path),
-                "stats": str(stats_path),
-                "highlights": str(highlights_path),
-                "quality": str(quality_path),
-                "timeline_jsonl": str(timeline_path),
-                "events_jsonl": str(events_path),
-                "people_jsonl": str(people_path),
-                "objects_jsonl": str(objects_path),
-                "objects_stats": str(objects_stats_path),
-                "object_refinements": str(object_refinements_path),
-                "objects_refined_stats": str(objects_refined_stats_path),
-                "output_video": str(output_path) if options.save_output_video else None,
-                "transcript_jsonl": str(transcript_path) if options.enable_transcript else None,
-                "audio_wav": str(audio_wav_path) if options.enable_transcript else None,
+                "input_video": source_path.name,
+                "meta": meta_path.name,
+                "summary": summary_path.name,
+                "stats": stats_path.name,
+                "highlights": highlights_path.name,
+                "quality": quality_path.name,
+                "timeline_jsonl": timeline_path.name,
+                "events_jsonl": events_path.name,
+                "people_jsonl": people_path.name,
+                "objects_jsonl": objects_path.name,
+                "objects_stats": objects_stats_path.name,
+                "object_refinements": object_refinements_path.name,
+                "objects_refined_stats": objects_refined_stats_path.name,
+                "moments": "moments.json",
+                "evidence": "evidence.json",
+                "zones": zones_path.name,
+                "output_video": output_path.name if options.save_output_video else None,
+                "transcript_jsonl": transcript_path.name if options.enable_transcript else None,
+                "audio_wav": audio_wav_path.name if options.enable_transcript else None,
             },
         }
         _write_json(summary_path, summary)
@@ -445,4 +571,5 @@ class VideoProcessor:
         meta["analyzed_frames"] = analyzed_frames
         meta["timings"] = timings
         _write_json(meta_path, meta)
+        report("completed", 100)
         return summary

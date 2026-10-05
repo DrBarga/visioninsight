@@ -3,8 +3,11 @@ Proprietary License
 Copyright (c) 2026 Bogdan Zelenskyi.
 All rights reserved.
 
-VisionInsight and all associated source code, documentation, assets, models,
-configuration files, and generated project materials are proprietary software.
+VisionInsight's original source code, documentation, assets, configuration files,
+and generated project materials are proprietary software.
+
+Third-party packages and pretrained model weights retain their own licenses.
+This notice does not alter those licenses or grant rights to third-party works.
 
 No permission is granted to copy, modify, publish, distribute, sublicense, sell,
 lease, reverse engineer, or otherwise use this software or any part of it

@@ -62,7 +62,7 @@ class HighlightsBuilder:
                 "type": "most_dynamic",
                 "start_sec": m.get("start_sec"),
                 "end_sec": m.get("end_sec"),
-                "reason": "Highest enter/exit activity (event burst)",
+                "reason": "Highest track appearance/loss activity (event burst)",
                 "evidence": {
                     "events_count": m.get("count"),
                     "window_sec": m.get("window_sec"),
@@ -73,7 +73,7 @@ class HighlightsBuilder:
         pc = stats.get("people_count") or {}
         peak = pc.get("max")
         max_at = pc.get("max_at") or {}
-        if peak is not None and max_at:
+        if peak is not None and float(peak) > 0 and max_at:
             t = max_at.get("time_sec", 0.0)
             highlights.append({
                 "type": "peak_crowd",
